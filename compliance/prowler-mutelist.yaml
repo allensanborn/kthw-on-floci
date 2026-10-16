@@ -1,0 +1,24 @@
+# Prowler findings muted because they are documented exceptions (docs/exceptions.md).
+# A finding is muted only with its exception number; everything else must pass.
+# Not muted on purpose: cloudtrail_cloudwatch_logging_enabled on floci, a floci gap
+# (GAPS.md: delivery recorded, not performed) that passes on AWS.
+Mutelist:
+  Accounts:
+    "*":
+      Checks:
+        "ec2_instance_managed_by_ssm":
+          Regions: ["*"]
+          Resources: ["*"]
+          Description: "E-12: machines are reached by EC2 Instance Connect, not SSM; production adds the SSM agent for patching and inventory"
+        "s3_bucket_server_access_logging_enabled":
+          Regions: ["*"]
+          Resources: ["kthw-cloudtrail-access-logs", "kthw-config-access-logs", "kthw-tfstate-logs-.*"]
+          Description: "E-14: access-log buckets do not log themselves (it would recurse); they are versioned, BPA-protected and TLS-only"
+        "cloudtrail_bedrock_logging_enabled":
+          Regions: ["*"]
+          Resources: ["*"]
+          Description: "E-15: Amazon Bedrock is not used in this account"
+        "iam_role_access_not_stale_to_bedrock":
+          Regions: ["*"]
+          Resources: ["kthw-config-config"]
+          Description: "E-15: the AWS-managed AWS_ConfigRole policy grants read access to Bedrock configuration for recording; not ours to narrow"

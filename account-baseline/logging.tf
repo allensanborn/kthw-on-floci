@@ -68,6 +68,21 @@ data "aws_iam_policy_document" "audit_key" {
   }
 
   statement {
+    sid       = "CloudWatchAlarmsPublishToTheEncryptedTopic"
+    actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.account_id]
+    }
+  }
+
+  statement {
     sid       = "ConfigDeliversEncrypted"
     actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
     resources = ["*"]
@@ -164,4 +179,21 @@ module "cloudtrail" {
   include_global_service_events = true # default false; IAM and STS events are global
   cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.trail.arn}:*"
   cloud_watch_logs_role_arn     = aws_iam_role.trail_to_logs.arn
+
+  # Management events, and S3 object-level reads and writes (AU-2, AU-12; CIS 3.x
+  # CloudTrail.7 / S3.22-23), except CloudTrail's own deliveries to its bucket.
+  advanced_event_selector = [
+    {
+      name           = "Management events"
+      field_selector = [{ field = "eventCategory", equals = ["Management"] }]
+    },
+    {
+      name = "S3 object-level events"
+      field_selector = [
+        { field = "eventCategory", equals = ["Data"] },
+        { field = "resources.type", equals = ["AWS::S3::Object"] },
+        { field = "resources.ARN", not_starts_with = ["${module.trail_bucket.bucket_arn}/"] },
+      ]
+    },
+  ]
 }

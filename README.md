@@ -69,6 +69,7 @@ KTHW optimizes for learning. These steps stay, because the tutorial needs them, 
 
 - `mise run test:kthw` runs the whole tutorial on the machines: every lab's commands as written, from a pinned commit, through the same EC2 Instance Connect path you use. It then checks that both nodes are Ready, that secrets are encrypted in etcd, and that nginx answers through a NodePort on both nodes. This is the project's test that the promise holds, not a way to skip the tutorial.
 - `mise run plan` exits 0 when nothing would change; on floci it does right after an apply.
+- `mise run prowler` runs Prowler's FedRAMP Moderate checks against the target. On floci, 1 of 191 requirement rows fails, a known floci gap; the [documented exceptions](docs/exceptions.md) are muted by number in `compliance/prowler-mutelist.yaml`.
 - `mise run lint` runs `terraform fmt` and `validate`, tflint with the AWS ruleset, and checkov. All three roots pass with no failures; every suppression is written next to its resource with its reason.
 
 ## Real AWS

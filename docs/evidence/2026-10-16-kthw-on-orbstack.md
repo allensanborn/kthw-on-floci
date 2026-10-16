@@ -30,8 +30,14 @@ After the restart: both nodes Ready again, lab 3's hostnames (`server.kubernetes
 
 `mise run lint`: `terraform fmt` and `validate` clean; tflint 0.64.0 with the AWS ruleset 0.49.0 clean; checkov 3.3.29 with 0 failed checks in all three roots (bootstrap 68 passed, workload 205, account-baseline 65), each of the 16 suppressions inline with its reason.
 
+## Runtime compliance (Prowler)
+
+`mise run prowler`: Prowler 5.45.0, `fedramp_moderate_revision_4_aws`, us-east-1, against floci with `account-baseline` and `workload` applied. 192 findings. Without the mutelist: 181 of 191 requirement rows pass (94.8%). With the documented exceptions muted (`compliance/prowler-mutelist.yaml`, E-12 to E-15): 1 requirement row fails, `cloudtrail_cloudwatch_logging_enabled`, a floci gap (GAPS.md, Audit) that passes on AWS.
+
+Fixed after the first Prowler run, which had 18 failing rows: CloudTrail S3 data events, the 15 CIS section 4 metric filters and alarms, and deny-all default network ACLs (the workload VPC's now admits only in-VPC traffic and TCP replies).
+
 ## Not covered by this run
 
 - Real AWS: not run (no credentials on this machine).
 - Docker Desktop, WSL2 and Linux hosts: not run.
-- Prowler runtime checks: see `kthw-q85.11`.
+- Prowler against real AWS, to compare findings with floci's (ADR decision 17).

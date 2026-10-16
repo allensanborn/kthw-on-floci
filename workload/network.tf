@@ -148,3 +148,49 @@ resource "aws_flow_log" "this" {
   iam_role_arn             = aws_iam_role.flow_logs.arn
   max_aggregation_interval = 60
 }
+
+# The subnets' network ACL (stateless, a second layer under the security groups, SC-7):
+# anything from inside the VPC or the pod range, and only TCP replies (ephemeral ports)
+# from outside, for connections the machines open through the NAT gateway.
+resource "aws_default_network_acl" "this" {
+  default_network_acl_id = aws_vpc.this.default_network_acl_id
+  subnet_ids             = [aws_subnet.public.id, aws_subnet.private.id, aws_subnet.endpoints.id]
+
+  ingress {
+    rule_no    = 100
+    protocol   = "-1"
+    action     = "allow"
+    cidr_block = var.vpc_cidr
+    from_port  = 0
+    to_port    = 0
+  }
+
+  ingress {
+    rule_no    = 110
+    protocol   = "-1"
+    action     = "allow"
+    cidr_block = local.pod_cidr
+    from_port  = 0
+    to_port    = 0
+  }
+
+  ingress {
+    rule_no    = 200
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  egress {
+    rule_no    = 100
+    protocol   = "-1"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 0
+    to_port    = 0
+  }
+
+  tags = { Name = "${var.cluster_name}-subnets" }
+}

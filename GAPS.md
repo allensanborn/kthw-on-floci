@@ -28,6 +28,13 @@ Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/al
 | Starting an instance fails if floci's Docker network was recreated (`floci-755y`) | — | `docker compose down` deletes floci's network; the instances stay attached to it and cannot start | `mise run down` uses `docker compose stop`, which keeps it. | Reattach to the current network on start (floci). |
 | Instances stop when floci stops | A host reboot does not stop instances | `mise run down` stops them; `mise run up` starts them | Disks (root and EBS) survive; anything not in a systemd unit must be restarted by hand. | — |
 
+## Audit
+
+| Gap | AWS | floci | Effect here, quantified | Closing it |
+|---|---|---|---|---|
+| CloudTrail does not deliver to CloudWatch Logs | Events reach the trail's log group within minutes; the CIS alarms fire from them | The log group and role are recorded (`kthw/11`); nothing is delivered | Prowler `cloudtrail_cloudwatch_logging_enabled` fails on floci (the one unmuted finding, 1 of 191). The 15 CIS metric filters and alarms exist but never see an event. | Deliver trail events to the log group (floci). |
+| Security Hub evaluates nothing | Standards run their controls and produce findings | Subscriptions are recorded (`kthw/10`), no controls run | Security Hub shows no findings on floci. Prowler stands in for the evaluation. | — |
+
 ## Access
 
 | Gap | AWS | floci | Effect here, quantified | Closing it |

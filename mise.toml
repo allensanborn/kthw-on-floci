@@ -64,6 +64,10 @@ run = "scripts/connect.sh"
 description = "Run all of Kubernetes The Hard Way on the machines and check the result"
 run = "scripts/test-kthw.sh"
 
+[tasks.prowler]
+description = "Prowler FedRAMP Moderate checks against the target, documented exceptions muted"
+run = "scripts/prowler.sh"
+
 [tasks.lint]
 description = "Static checks: terraform fmt and validate, tflint (AWS ruleset), checkov"
 run = "scripts/lint.sh"
