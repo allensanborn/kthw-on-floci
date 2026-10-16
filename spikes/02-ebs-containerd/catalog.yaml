@@ -1,0 +1,14 @@
+defaultDockerImage: kthw-spike-guest:latest
+images:
+  - imageId: ami-0kthw0debian12000
+    aliases: [ami-kthw-debian12]
+    dockerImage: kthw-spike-guest:latest
+    name: kthw-debian-12-arm64-spike
+    rootVolumeType: gp3
+    description: Spike 01 Debian 12 systemd guest
+    ownerId: "000000000000"
+    architecture: arm64
+    rootDeviceType: ebs
+    virtualizationType: hvm
+    creationDate: "2026-10-16T00:00:00.000Z"
+    guestRuntime: systemd

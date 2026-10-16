@@ -41,13 +41,13 @@
 ### Operating system and floci fixes
 
 12. **Debian 12, as KTHW specifies.** A Debian 12 systemd guest image is built in this repo first and upstreamed to floci's AmiImageTool. The local build is deleted once a floci release ships it.
-13. **Lab 9 needs four guest fixes, proven by [spike 01](../../spikes/01-node-capability/RESULTS.md):**
-    - a Docker volume at `/var/lib/containerd` (via a per-AMI catalog `volumes:` field)
+13. **Lab 9 needs four guest fixes, proven by [spike 01](../../spikes/01-node-capability/RESULTS.md) and [spike 02](../../spikes/02-ebs-containerd/RESULTS.md):**
+    - a dedicated encrypted EBS volume per node, mounted at `/var/lib/containerd` by a boot unit in the image. Floci ≥ 2.2.0 attaches EBS as real block devices, so this needs no floci feature, and it's the same layout as on real AWS. *(Amended 2026-10-16: replaces a proposed per-AMI `volumes:` catalog field.)*
     - a read-only `/lib/modules` bind
     - un-binding Docker's `/etc/hostname` and `/etc/hosts` at boot
     - a DMI `board_asset_tag` identity overlay for the EIC agent
 
-    Real EBS emulation is logged as a floci gap, not built.
+    Floci's remaining EBS gaps (no launch-time data volumes, Xen-style device names, world-writable device nodes, cross-instance loop-device visibility, no at-rest encryption, no hotplug events) are logged in `GAPS.md`, not built.
 14. **EC2 Instance Connect is implemented in floci so that the *unmodified* AWS agent passes.** That means: `SendSSHPublicKey`; the IMDS `managed-ssh-keys` paths; a CA → intermediate → signer chain with RSA-PSS signatures and OCSP staples; DMI identity; and the agent plus floci's CA baked into the image. EICE (the resource plus its SigV4 WebSocket tunnel) comes after EIC.
 15. **Floci fixes live as one linear stack of branches** in the fork ([allensanborn/floci](https://github.com/allensanborn/floci)), with true dependencies ordered (DMI identity → EIC → EICE). Each upstream PR is cut by rebasing its branch onto `upstream/main`. Fork PRs can't target fork branches upstream, so no merge order is forced. KTHW branches take upstream PR slots first.
 16. **Distribution is a temporary image channel.** The fork publishes `ghcr.io/allensanborn/floci:<upstream-version>-kthw.<n>` (multi-arch, SBOM, provenance), and this repo pins it **by digest**. The Debian image ships the same way. All builds are `workflow_dispatch` only. **Exit condition:** once an upstream floci release contains every feature used, switch to `floci/floci:<version>@sha256:…` and retire the channel.

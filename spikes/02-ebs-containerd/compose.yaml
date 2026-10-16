@@ -1,0 +1,12 @@
+# Floci pinned to the release with real EBS block devices (#4354), in its own
+# resource namespace so its containers never collide with another floci on the daemon.
+services:
+  floci:
+    image: floci/floci:2.3.0
+    ports: ["127.0.0.1:4600:4566"]
+    environment:
+      FLOCI_DOCKER_RESOURCE_NAMESPACE: kthw
+      FLOCI_SERVICES_EC2_IMAGE_CATALOG_PATH: /etc/floci/catalog.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./catalog.yaml:/etc/floci/catalog.yaml:ro
