@@ -1,0 +1,4 @@
+# Copy to aws.s3.tfbackend; fill in from `terraform -chdir=bootstrap output`.
+bucket     = "kthw-tfstate-<account-id>-<region>"
+region     = "<region>"
+kms_key_id = "alias/kthw-tfstate"

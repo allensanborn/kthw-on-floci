@@ -1,0 +1,28 @@
+# AMIs this floci exposes. Names and owner mirror the official Debian 12 AMIs
+# (owner 136693071363), so workload/'s aws_ami lookup is identical on AWS.
+defaultDockerImage: kthw/ami-debian12:dev
+images:
+  - imageId: ami-0de0b1a0kthw00a64
+    dockerImage: kthw/ami-debian12:dev
+    name: debian-12-arm64-20261001-2000
+    description: Debian 12 (20261001-2000), floci guest image
+    ownerId: "136693071363"
+    architecture: arm64
+    rootDeviceType: ebs
+    rootDeviceName: /dev/xvda
+    rootVolumeType: gp3
+    virtualizationType: hvm
+    creationDate: "2026-10-01T20:00:00.000Z"
+    guestRuntime: systemd
+  - imageId: ami-0de0b1a0kthw00x86
+    dockerImage: kthw/ami-debian12:dev
+    name: debian-12-amd64-20261001-2000
+    description: Debian 12 (20261001-2000), floci guest image
+    ownerId: "136693071363"
+    architecture: x86_64
+    rootDeviceType: ebs
+    rootDeviceName: /dev/xvda
+    rootVolumeType: gp3
+    virtualizationType: hvm
+    creationDate: "2026-10-01T20:00:00.000Z"
+    guestRuntime: systemd

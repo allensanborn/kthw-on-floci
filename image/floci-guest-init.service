@@ -1,0 +1,13 @@
+[Unit]
+Description=floci guest fixups (hostname files, instance identity, SSH host keys)
+DefaultDependencies=no
+After=local-fs.target
+Before=systemd-hostnamed.service ssh.service sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/floci-guest-init
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,33 @@
+# Local AWS for kthw-on-floci. Start with `mise run up` (or `docker compose -f floci/compose.yaml up -d`).
+name: kthw-floci
+services:
+  floci:
+    # Temporary channel: floci built from the allensanborn/floci KTHW stack (ADR decision 16).
+    image: ${FLOCI_IMAGE:-floci-kthw:dev}
+    ports: ["127.0.0.1:4566:4566"]
+    environment:
+      # Own resource namespace, so these containers never collide with another floci on the daemon.
+      FLOCI_DOCKER_RESOURCE_NAMESPACE: kthw
+      # State survives restarts (a laptop reboot must not lose the cluster).
+      FLOCI_STORAGE_MODE: persistent
+      # HTTPS (and wss://) alongside HTTP on 4566, from floci's local CA. EC2 Instance
+      # Connect Endpoint tunnels need it.
+      FLOCI_TLS_ENABLED: "true"
+      FLOCI_SERVICES_EC2_IMAGE_CATALOG_PATH: /etc/floci/catalog.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./catalog.yaml:/etc/floci/catalog.yaml:ro
+      - floci-data:/app/data
+  # Your terminal into "AWS": `docker compose -f floci/compose.yaml run --rm console`.
+  console:
+    build: ../console
+    image: kthw/console:dev
+    profiles: [console]
+    depends_on: [floci]
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+volumes:
+  floci-data:

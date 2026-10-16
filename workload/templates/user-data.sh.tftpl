@@ -1,0 +1,160 @@
+#!/bin/bash
+# kthw-on-floci first boot for "${name}". Identical on real AWS and floci.
+# Leaves the machine in KTHW lab 3's "root SSH already enabled" state:
+# key-only root login, the jumpbox's root key trusted, verified known_hosts.
+set -euo pipefail
+exec > >(tee -a /var/log/kthw-user-data.log) 2>&1
+
+install -d -m 0755 /etc/kthw
+cat > /etc/kthw/env <<'ENV'
+KTHW_NAME=${name}
+KTHW_REGION=${region}
+KTHW_SSM_PREFIX=${ssm_prefix}
+KTHW_CONTAINERD_VOLUME_ID=${containerd_volume_id}
+ENV
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q
+apt-get install -y -q --no-install-recommends ca-certificates curl jq openssh-server
+
+# --- EC2 Instance Connect agent (not packaged by Debian 12) ------------------
+EIC_VERSION=1.1.17
+EIC_SHA256=dd2e74c5086b97ea26166927ff8f0feb9a896e87d532b22f01195ededdff8d8a
+if [ ! -x /usr/share/ec2-instance-connect/eic_run_authorized_keys ]; then
+  tmp=$(mktemp -d /root/eic.XXXXXX)
+  curl -fsSL -o "$tmp/eic.tar.gz" \
+    "https://github.com/aws/aws-ec2-instance-connect-config/archive/refs/tags/$EIC_VERSION.tar.gz"
+  echo "$EIC_SHA256  $tmp/eic.tar.gz" | sha256sum -c -
+  tar -xzf "$tmp/eic.tar.gz" -C "$tmp"
+  install -d -m 0755 /usr/share/ec2-instance-connect
+  install -m 0755 "$tmp"/aws-ec2-instance-connect-config-$EIC_VERSION/src/bin/eic_{run,curl,parse}_authorized_keys \
+    /usr/share/ec2-instance-connect/
+  rm -rf "$tmp"
+fi
+getent passwd ec2-instance-connect >/dev/null || adduser --system --disabled-login \
+  --shell /usr/sbin/nologin --no-create-home --home /nonexistent --quiet ec2-instance-connect
+
+cat > /etc/ssh/sshd_config.d/50-kthw.conf <<'SSHD'
+# KTHW lab 3 needs root SSH. Keys only, never a password (documented exception, AC-6).
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+# EC2 Instance Connect: short-lived keys pushed through IAM-authorized SendSSHPublicKey.
+AuthorizedKeysCommand /usr/share/ec2-instance-connect/eic_run_authorized_keys %u %f
+AuthorizedKeysCommandUser ec2-instance-connect
+SSHD
+sshd -t
+systemctl reload-or-restart ssh
+
+# --- SSM Parameter Store over SigV4 with the instance role ------------------
+# curl --aws-sigv4 instead of the AWS CLI: nothing extra to install.
+cat > /usr/local/sbin/kthw-ssm <<'SSM'
+#!/bin/bash
+# usage: kthw-ssm GetParameter|PutParameter '<json body>'
+set -euo pipefail
+. /etc/kthw/env
+imds=http://169.254.169.254/latest
+token=$(curl -fsS -X PUT "$imds/api/token" -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')
+md() { curl -fsS -H "X-aws-ec2-metadata-token: $token" "$imds/meta-data/$1"; }
+creds=$(md "iam/security-credentials/$(md iam/security-credentials/)")
+# floci passes its endpoint in PID 1's environment; on AWS this stays empty.
+endpoint=$(tr '\0' '\n' < /proc/1/environ | sed -n 's/^AWS_ENDPOINT_URL=//p')
+curl -fsS --aws-sigv4 "aws:amz:$KTHW_REGION:ssm" \
+  --user "$(jq -r .AccessKeyId <<<"$creds"):$(jq -r .SecretAccessKey <<<"$creds")" \
+  -H "x-amz-security-token: $(jq -r .Token <<<"$creds")" \
+  -H "X-Amz-Target: AmazonSSM.$1" -H 'Content-Type: application/x-amz-json-1.1' \
+  --data "$2" "$${endpoint:-https://ssm.$KTHW_REGION.amazonaws.com}/"
+SSM
+chmod 0700 /usr/local/sbin/kthw-ssm
+
+cat > /usr/local/sbin/kthw-ssh-trust <<'TRUST'
+#!/bin/bash
+# Exchange public keys through SSM until this machine's half of lab 3 holds.
+set -euo pipefail
+. /etc/kthw/env
+put() { kthw-ssm PutParameter "$(jq -n --arg n "$1" --arg v "$2" '{Name:$n,Value:$v,Type:"String",Overwrite:true}')" >/dev/null; }
+get() { kthw-ssm GetParameter "$(jq -n --arg n "$1" '{Name:$n}')" | jq -er .Parameter.Value; }
+retry() { for _ in $(seq 1 180); do "$@" && return 0; sleep 10; done; return 1; }
+install -d -m 0700 /root/.ssh
+
+if [ "$KTHW_NAME" = jumpbox ]; then
+  [ -f /root/.ssh/id_ed25519 ] || ssh-keygen -q -t ed25519 -N '' -C root@jumpbox -f /root/.ssh/id_ed25519
+  retry put "$KTHW_SSM_PREFIX/jumpbox/root-ssh-public-key" "$(cat /root/.ssh/id_ed25519.pub)"
+  : > /root/.ssh/known_hosts.kthw
+  while read -r ip fqdn host _; do
+    key=$(retry get "$KTHW_SSM_PREFIX/hosts/$host/ssh-host-ed25519-key")
+    echo "$ip,$host,$fqdn $key" >> /root/.ssh/known_hosts.kthw
+  done < /root/machines.txt
+  mv /root/.ssh/known_hosts.kthw /root/.ssh/known_hosts
+else
+  retry put "$KTHW_SSM_PREFIX/hosts/$KTHW_NAME/ssh-host-ed25519-key" \
+    "$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
+  key=$(retry get "$KTHW_SSM_PREFIX/jumpbox/root-ssh-public-key")
+  grep -qxF "$key" /root/.ssh/authorized_keys 2>/dev/null || echo "$key" >> /root/.ssh/authorized_keys
+  chmod 0600 /root/.ssh/authorized_keys
+fi
+TRUST
+chmod 0700 /usr/local/sbin/kthw-ssh-trust
+
+cat > /etc/systemd/system/kthw-ssh-trust.service <<'UNIT'
+[Unit]
+Description=KTHW: exchange SSH keys through SSM Parameter Store
+Wants=network-online.target
+After=network-online.target ssh.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/kthw-ssh-trust
+UNIT
+
+%{ if name == "jumpbox" ~}
+# Lab 3's machine database, ready to copy next to the tutorial checkout.
+cat > /root/machines.txt <<'MACHINES'
+${machines_txt}MACHINES
+%{ endif ~}
+%{ if containerd_volume_id != "" ~}
+# --- Dedicated containerd volume (spike 02) ---------------------------------
+# A unit, not fstab: floci attaches the device after boot without a udev
+# event, so fstab's device dependency would never fire there.
+cat > /usr/local/sbin/kthw-containerd-volume <<'VOL'
+#!/bin/bash
+set -euo pipefail
+. /etc/kthw/env
+nitro=/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${KTHW_CONTAINERD_VOLUME_ID/-/}
+for _ in $(seq 1 300); do
+  for dev in "$nitro" /dev/xvdf; do
+    if [ -b "$dev" ]; then
+      blkid "$dev" >/dev/null || mkfs.ext4 -q -L containerd "$dev"
+      install -d -m 0711 /var/lib/containerd
+      mountpoint -q /var/lib/containerd || mount -o noatime "$dev" /var/lib/containerd
+      exit 0
+    fi
+  done
+  sleep 1
+done
+echo "containerd volume $KTHW_CONTAINERD_VOLUME_ID never appeared" >&2
+exit 1
+VOL
+chmod 0700 /usr/local/sbin/kthw-containerd-volume
+
+cat > /etc/systemd/system/kthw-containerd-volume.service <<'UNIT'
+[Unit]
+Description=KTHW: mount the containerd EBS volume
+Before=containerd.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/kthw-containerd-volume
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now --no-block kthw-containerd-volume.service
+%{ endif ~}
+systemctl daemon-reload
+systemctl start --no-block kthw-ssh-trust.service
+echo "kthw user-data done for ${name}"

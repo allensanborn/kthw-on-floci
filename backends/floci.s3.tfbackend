@@ -1,0 +1,8 @@
+# State backend on floci. The provider endpoint comes from AWS_ENDPOINT_URL.
+bucket     = "kthw-tfstate-000000000000-us-east-1"
+region     = "us-east-1"
+kms_key_id = "alias/kthw-tfstate"
+endpoints = {
+  s3  = "http://localhost.floci.io:4566"
+  sts = "http://localhost.floci.io:4566"
+}
