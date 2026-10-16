@@ -1,0 +1,7 @@
+# checkov settings for `mise run lint`. No checks are skipped here: every suppression is
+# a #checkov:skip comment on its resource, with its reason (see docs/exceptions.md).
+framework:
+  - terraform
+compact: true
+quiet: true
+skip-download: true
