@@ -26,6 +26,7 @@ locals {
   az             = data.aws_availability_zones.available.names[0]
   public_cidr    = cidrsubnet(var.vpc_cidr, 8, 0)
   private_cidr   = cidrsubnet(var.vpc_cidr, 8, 1)
+  endpoint_cidr  = cidrsubnet(var.vpc_cidr, 12, 32) # a /28 right after the private /24
   account_id     = data.aws_caller_identity.current.account_id
   partition      = data.aws_partition.current.partition
   ssm_prefix     = "/${var.cluster_name}"

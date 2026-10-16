@@ -24,6 +24,9 @@ services:
     image: kthw/console:dev
     profiles: [console]
     depends_on: [floci]
+    working_dir: /work
+    volumes:
+      - ..:/work:ro
     environment:
       AWS_ENDPOINT_URL: http://floci:4566
       AWS_ACCESS_KEY_ID: test

@@ -30,6 +30,21 @@ resource "aws_subnet" "private" {
   tags = { Name = "${var.cluster_name}-private" }
 }
 
+# The EC2 Instance Connect Endpoint's own subnet. Its interface takes any free address
+# in the subnet it lives in; here that can never be one the machines are pinned to.
+resource "aws_subnet" "endpoints" {
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = local.endpoint_cidr
+  availability_zone = local.az
+
+  tags = { Name = "${var.cluster_name}-endpoints" }
+}
+
+resource "aws_route_table_association" "endpoints" {
+  subnet_id      = aws_subnet.endpoints.id
+  route_table_id = aws_route_table.private.id
+}
+
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
   tags   = { Name = var.cluster_name }

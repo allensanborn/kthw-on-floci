@@ -5,7 +5,7 @@ FROM debian:12
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       systemd systemd-sysv dbus openssh-server sudo curl ca-certificates \
-      iproute2 kmod procps e2fsprogs util-linux unzip less \
+      iproute2 kmod procps e2fsprogs util-linux unzip less bsdextrautils gettext-base \
  && rm -rf /var/lib/apt/lists/* \
  # Baked host keys would be identical on every instance; regenerate per boot.
  && rm -f /etc/ssh/ssh_host_* \

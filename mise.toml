@@ -1,0 +1,57 @@
+# kthw-on-floci tasks. `mise tasks` lists them; `mise run <task>` runs one.
+# The default target is floci. Set KTHW_TARGET=aws to run the same roots against
+# real AWS with your own credentials (see README).
+
+[tools]
+terraform = "1.15.8"
+
+[env]
+KTHW_TARGET = "{{ env.KTHW_TARGET | default(value='floci') }}"
+
+[tasks.doctor]
+description = "Check this machine can run floci's KTHW machines"
+run = "scripts/doctor.sh"
+
+[tasks.images]
+description = "Build the Debian 12 guest image and the console image"
+run = [
+  "docker build -q -t kthw/ami-debian12:dev image",
+  "docker compose -f floci/compose.yaml --profile console build -q console",
+]
+
+[tasks.up]
+description = "Start floci (and the instances it already has)"
+depends = ["images"]
+run = "scripts/up.sh"
+
+[tasks.down]
+description = "Stop floci; instances stop with it and keep their disks"
+run = "docker compose -f floci/compose.yaml down"
+
+[tasks.bootstrap]
+description = "Create the Terraform state bucket and its KMS key (local state)"
+run = "scripts/tf.sh bootstrap apply"
+
+[tasks.apply]
+description = "Create (or update) the KTHW machines"
+run = "scripts/tf.sh workload apply"
+
+[tasks.plan]
+description = "Show what would change; exits 2 when the workload drifted"
+run = "scripts/tf.sh workload plan -detailed-exitcode"
+
+[tasks.destroy]
+description = "Delete the KTHW machines (the state bucket stays)"
+run = "scripts/tf.sh workload destroy"
+
+[tasks.console]
+description = "Open a shell with the AWS CLI and SSH, pointed at floci"
+run = "docker compose -f floci/compose.yaml --profile console run --rm console"
+
+[tasks.connect]
+description = "SSH to the jumpbox through the EC2 Instance Connect Endpoint"
+run = "scripts/connect.sh"
+
+[tasks."test:kthw"]
+description = "Run all of Kubernetes The Hard Way on the machines and check the result"
+run = "scripts/test-kthw.sh"
