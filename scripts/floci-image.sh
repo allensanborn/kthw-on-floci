@@ -4,7 +4,7 @@
 # the branch; FORCE=1 rebuilds.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
-ref=${FLOCI_REF:-kthw/09-run-instances-ebs-optimized}
+ref=${FLOCI_REF:-kthw/14-imds-after-start}
 [ -z "${FLOCI_IMAGE:-}" ] || { echo "using FLOCI_IMAGE=$FLOCI_IMAGE"; exit 0; }
 if [ "${FORCE:-0}" != 1 ] && docker image inspect floci-kthw:dev >/dev/null 2>&1; then
   echo "floci-kthw:dev present (FORCE=1 to rebuild from $ref)"; exit 0

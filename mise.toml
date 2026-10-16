@@ -29,7 +29,8 @@ run = "scripts/up.sh"
 
 [tasks.down]
 description = "Stop floci; instances stop with it and keep their disks"
-run = "docker compose -f floci/compose.yaml down"
+# stop, not down: down deletes floci's Docker network, which the instances stay attached to
+run = "docker compose -f floci/compose.yaml stop"
 
 [tasks.bootstrap]
 description = "Create the Terraform state bucket and its KMS key (local state)"

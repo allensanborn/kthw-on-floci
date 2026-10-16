@@ -6,7 +6,7 @@ on:
     inputs:
       floci_ref:
         description: allensanborn/floci ref to build floci from (the KTHW stack tip)
-        default: kthw/09-run-instances-ebs-optimized
+        default: kthw/14-imds-after-start
 permissions:
   contents: read
 env:

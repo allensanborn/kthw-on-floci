@@ -5,11 +5,21 @@ set -eu
 
 # 1. Docker bind-mounts /etc/hostname and /etc/hosts, so hostnamectl and
 #    `sed -i /etc/hosts` fail with EBUSY. Replace each bind with a plain file.
+#    Docker binds them again at every start; only the first boot takes Docker's content.
+#    After that the guest's own files (lab 3's hostname and hosts entries) are what remain,
+#    as they would across a reboot on EC2.
+first_boot=/var/lib/floci-guest-init/etc-adopted
 for f in /etc/hostname /etc/hosts; do
   if mountpoint -q "$f"; then
-    cp "$f" "$f.floci"; umount "$f"; cat "$f.floci" > "$f"; rm -f "$f.floci"
+    if [ -e "$first_boot" ]; then
+      umount "$f"
+    else
+      cp "$f" "$f.floci"; umount "$f"; cat "$f.floci" > "$f"; rm -f "$f.floci"
+    fi
   fi
 done
+mkdir -p "${first_boot%/*}" && touch "$first_boot"
+[ -s /etc/hostname ] && hostname "$(cat /etc/hostname)"
 
 # A stock Debian install maps its own name on 127.0.1.1, and KTHW lab 3's
 # `sed 's/^127.0.1.1.*/.../'` edits that line. Docker's generated file lacks it.
