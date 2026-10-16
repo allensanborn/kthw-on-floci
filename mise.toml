@@ -4,6 +4,8 @@
 
 [tools]
 terraform = "1.15.8"
+tflint = "0.64.0"
+"pipx:checkov" = "3.3.29"
 
 [env]
 KTHW_TARGET = "{{ env.KTHW_TARGET | default(value='floci') }}"
@@ -33,8 +35,8 @@ description = "Create the Terraform state bucket and its KMS key (local state)"
 run = "scripts/tf.sh bootstrap apply"
 
 [tasks.apply]
-description = "Create (or update) the KTHW machines"
-run = "scripts/tf.sh workload apply"
+description = "Create (or update) the KTHW machines, and wait until lab 3's root SSH works"
+run = ["scripts/tf.sh workload apply", "scripts/wait-ready.sh"]
 
 [tasks.plan]
 description = "Show what would change; exits 2 when the workload drifted"
@@ -55,3 +57,7 @@ run = "scripts/connect.sh"
 [tasks."test:kthw"]
 description = "Run all of Kubernetes The Hard Way on the machines and check the result"
 run = "scripts/test-kthw.sh"
+
+[tasks.lint]
+description = "Static checks: terraform fmt and validate, tflint (AWS ruleset), checkov"
+run = "scripts/lint.sh"

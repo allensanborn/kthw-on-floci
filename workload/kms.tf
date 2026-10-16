@@ -1,6 +1,9 @@
 # One customer-managed key for this cluster's data at rest: EBS volumes and
 # the flow-log group (SC-12, SC-13, SC-28).
 data "aws_iam_policy_document" "kms" {
+  #checkov:skip=CKV_AWS_109:A key policy's "*" resource is the key itself; access is scoped by principal and condition
+  #checkov:skip=CKV_AWS_111:Same: key policy, not an identity policy
+  #checkov:skip=CKV_AWS_356:Same: key policy, not an identity policy
   statement {
     sid       = "AccountAdministration"
     actions   = ["kms:*"]

@@ -26,6 +26,7 @@ resource "aws_instance" "machine" {
   # node may forward traffic not addressed to itself.
   source_dest_check = each.key == "jumpbox" || each.key == "server"
   monitoring        = true
+  ebs_optimized     = true
 
   metadata_options {
     http_endpoint               = "enabled"

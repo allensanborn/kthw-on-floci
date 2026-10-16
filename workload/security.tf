@@ -30,6 +30,7 @@ resource "aws_vpc_security_group_egress_rule" "eice_to_jumpbox" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "jumpbox_from_eice" {
+  #checkov:skip=CKV_AWS_24:Source is the EC2 Instance Connect Endpoint security group, not 0.0.0.0/0
   security_group_id            = aws_security_group.jumpbox.id
   description                  = "SSH from the EC2 Instance Connect Endpoint"
   ip_protocol                  = "tcp"
@@ -66,6 +67,7 @@ resource "aws_vpc_security_group_egress_rule" "jumpbox_to_cluster" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "cluster_from_jumpbox" {
+  #checkov:skip=CKV_AWS_24:Source is the jumpbox security group, not 0.0.0.0/0
   for_each = local.jumpbox_to_cluster
 
   security_group_id            = aws_security_group.cluster.id

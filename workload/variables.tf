@@ -4,6 +4,12 @@ variable "region" {
   default     = "us-east-1"
 }
 
+variable "availability_zone" {
+  description = "The zone for all subnets. Default: the region's \"a\" zone."
+  type        = string
+  default     = null
+}
+
 variable "cluster_name" {
   description = "Name used in resource names, tags and SSM parameter paths."
   type        = string

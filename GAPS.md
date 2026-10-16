@@ -2,7 +2,7 @@
 
 Where this repo on floci differs from the same Terraform on real AWS. Per the project's standing rule, a gap is acceptable only when it is documented and quantified: what differs, how much, what it affects, and how to close it. Each floci gap links its tracking issue in [floci-harness](https://github.com/allensanborn/floci-harness) (`floci-*`). Gaps that floci-harness's API sweeps already measure (an error code, a missing field) are not repeated here; this file is for behaviour an API test cannot see.
 
-Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/allensanborn/floci/tree/kthw/07-vpc-network-cleanup) (`kthw/01` to `kthw/07`).
+Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/allensanborn/floci/tree/kthw/08-systemd-private-cgroupns) (`kthw/01` to `kthw/08`).
 
 ## Network
 
@@ -10,7 +10,7 @@ Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/al
 |---|---|---|---|---|
 | Security groups are not enforced inside a VPC | Every packet is checked against both sides' rules | Off by default: enforcement mode drops `--privileged`, which kubelet and containerd need (ADR decision 7) | Any instance reaches any port on any other; the tiered groups in `workload/security.tf` are recorded, not applied. 0 of the 16 rules enforced between instances. **Exception:** the EC2 Instance Connect Endpoint tunnel checks the endpoint's egress and the instance's ingress (`kthw/05`). | Enforcement that keeps privileged guests (floci). Meanwhile Prowler and checkov judge the rules from the API, which matches AWS. |
 | No VPC routing or NAT | Private subnets reach the internet only through the NAT gateway in the route table | Instances egress through Docker's default bridge whatever the route tables say; the NAT gateway is a record | Private instances reach the internet with or without the NAT gateway or a `0.0.0.0/0` route. The design is checked on AWS only. | floci VPC routing (not planned). |
-| Instances have two extra network interfaces | One ENI per instance, its VPC address | `eth0` (Docker bridge, default route, publishes SSH), `eth1` (VPC network, the private IP), `eth2` (floci's network, for IMDS and the tunnel) | Anything that picks "the default-route address" picks the Docker bridge address, not the private IP. kubelet does this when no `--node-ip` is set: nodes register a `192.168.x` InternalIP. KTHW still works (lab 11 routes and `/etc/hosts` use the private IPs). | Route the default via the VPC network with source routing for published ports (floci). |
+| Instances have two extra network interfaces | One ENI per instance, its VPC address | `eth0` (Docker bridge, default route, publishes SSH), `eth1` (VPC network, the private IP), `eth2` (floci's network, for IMDS and the tunnel) | Anything that picks "the default-route address" gets the Docker bridge address, not the private IP. KTHW is unaffected: kubelet resolves its node name through lab 3's `/etc/hosts`, so both nodes register their private IPs (measured: `10.100.1.20`, `10.100.1.21`). | Route the default via the VPC network, with source routing for published ports (floci). |
 | A VPC CIDR already used by any Docker network is substituted | VPCs may overlap freely | Each VPC is a Docker network; an overlapping CIDR is moved to `10.240.0.0/12` and logged | The instances' private IPs stop matching `machines.txt`. `mise run doctor` fails when `10.100.0.0/16` is taken. | Choose a free `vpc_cidr`. |
 
 ## Compute and storage
@@ -48,3 +48,4 @@ Found while building this repo and fixed in [allensanborn/floci](https://github.
 | `kthw/05-ec2-instance-connect-endpoint` | No EC2 Instance Connect Endpoint |
 | `kthw/06-terraform-fidelity` | Instance security groups, default-egress revoke, `KmsKeyId`, root volume size and encryption, and flow-log tags did not round-trip, so every plan replaced 8 resources |
 | `kthw/07-vpc-network-cleanup` | A deleted VPC's network survived and pushed the next VPC onto a substitute CIDR |
+| `kthw/08-systemd-private-cgroupns` | Every systemd guest shared the Docker host's cgroup tree, so the two nodes' kubelets tore down each other's pods (lab 12 crash-looped) |

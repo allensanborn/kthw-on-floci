@@ -1,8 +1,15 @@
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
+# One zone, named explicitly, so the set can never grow when AWS adds a zone; the
+# lookup also fails early if the zone is missing or impaired.
 data "aws_availability_zones" "available" {
   state = "available"
+
+  filter {
+    name   = "zone-name"
+    values = [coalesce(var.availability_zone, "${var.region}a")]
+  }
 }
 
 # The official Debian 12 AMI (owner: Debian). floci's catalog mirrors the
