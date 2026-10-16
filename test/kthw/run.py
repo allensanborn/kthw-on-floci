@@ -137,6 +137,9 @@ def main():
         ["aws", "ec2", "describe-instances", "--filters", "Name=tag:Name,Values=kthw-jumpbox",
          "Name=instance-state-name,Values=running", "--query", "Reservations[0].Instances[0].InstanceId",
          "--output", "text"], check=True, capture_output=True, text=True).stdout.strip()
+    if not instance_id.startswith("i-"):
+        log("no running kthw-jumpbox: run `mise run apply` first")
+        return 1
     jumpbox = Jumpbox(instance_id)
     log(f"KTHW {PLAN['kthw_commit'][:12]} on jumpbox {instance_id}")
     only = sys.argv[1:]

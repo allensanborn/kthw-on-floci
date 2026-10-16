@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # usage: scripts/on-jumpbox.sh '<command>'   Run a command as root on the jumpbox, through
 # EC2 Instance Connect and the endpoint, from the console container.
 . "$(dirname "$0")/env.sh"
@@ -13,4 +13,4 @@ aws ec2-instance-connect send-ssh-public-key --instance-id $id --instance-os-use
   --ssh-public-key file:///root/k.pub >/dev/null
 ssh -q -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null -i /root/k \
   -o ProxyCommand='aws ec2-instance-connect open-tunnel --instance-id %h' admin@$id \
-  'sudo -i bash -s' < /work/.scratch/on-jumpbox.sh" 2>&1 | grep -v '^ Container'
+  'sudo -i bash -s' < /work/.scratch/on-jumpbox.sh" 2> >(grep -v '^ Container' >&2)

@@ -15,8 +15,9 @@ description = "Check this machine can run floci's KTHW machines"
 run = "scripts/doctor.sh"
 
 [tasks.images]
-description = "Build the Debian 12 guest image and the console image"
+description = "Build the floci, Debian 12 guest and console images"
 run = [
+  "scripts/floci-image.sh",
   "docker build -q -t kthw/ami-debian12:dev image",
   "docker compose -f floci/compose.yaml --profile console build -q console",
 ]
@@ -34,9 +35,13 @@ run = "docker compose -f floci/compose.yaml down"
 description = "Create the Terraform state bucket and its KMS key (local state)"
 run = "scripts/tf.sh bootstrap apply"
 
+[tasks.baseline]
+description = "Apply the account security baseline (CloudTrail, Config, GuardDuty, Security Hub)"
+run = "scripts/tf.sh account-baseline apply"
+
 [tasks.apply]
 description = "Create (or update) the KTHW machines, and wait until lab 3's root SSH works"
-run = ["scripts/tf.sh workload apply", "scripts/wait-ready.sh"]
+run = "scripts/apply.sh"
 
 [tasks.plan]
 description = "Show what would change; exits 2 when the workload drifted"

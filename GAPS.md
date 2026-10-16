@@ -2,7 +2,7 @@
 
 Where this repo on floci differs from the same Terraform on real AWS. Per the project's standing rule, a gap is acceptable only when it is documented and quantified: what differs, how much, what it affects, and how to close it. Each floci gap links its tracking issue in [floci-harness](https://github.com/allensanborn/floci-harness) (`floci-*`). Gaps that floci-harness's API sweeps already measure (an error code, a missing field) are not repeated here; this file is for behaviour an API test cannot see.
 
-Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/allensanborn/floci/tree/kthw/08-systemd-private-cgroupns) (`kthw/01` to `kthw/08`).
+Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/allensanborn/floci/tree/kthw/09-run-instances-ebs-optimized) (`kthw/01` to `kthw/09`).
 
 ## Network
 
@@ -23,6 +23,7 @@ Status as of 2026-10-16, floci built from the [KTHW stack](https://github.com/al
 | No EBS hotplug events | udev sees an attach; `fstab` mounts it | The device node appears without a uevent | `fstab` would not mount `/var/lib/containerd`; a systemd unit in `user_data` does instead. | — |
 | EBS device nodes are world-writable; guests see every loop device on the host (`floci-ofh5`) | `brw-rw----` root:disk; an instance sees its own volumes | `brw-rw-rw-`; `lsblk` lists other instances' and other emulators' volumes | A non-root user on a node can read or write both nodes' containerd volumes. Not exploitable from outside the laptop. | `mknod` with 0660/disk (floci); isolation needs unprivileged guests. |
 | Launch-time data volumes are dropped (`floci-ue91`) | `ebs_block_device` creates and attaches a volume | Silently ignored | Not used here: `aws_ebs_volume` + `aws_volume_attachment` instead. | Fix in floci. |
+| Kernel-global sysctls are the Docker host's | Each instance has its own kernel | One shared kernel. `net.netfilter.nf_conntrack_max` is read-only in a guest, and kube-proxy (lab 9) exits when it cannot raise it; the guest image gives it a writable copy of that one file | kube-proxy sets 491520 (32768 x 15 cores) and reads it back, but the real limit stays the host's 327680 (measured on OrbStack). Only a node with more than 327680 tracked connections would notice. | Raise the host's limit, or emulate per-instance kernels (not possible with containers). |
 | Hostname | cloud-init sets `ip-10-100-1-20` from IMDS | The container ID | Lab 3 sets the hostnames anyway. | Set the container hostname from the private DNS name (floci). |
 | Instances stop when floci stops | A host reboot does not stop instances | `mise run down` stops them; `mise run up` starts them | Disks (root and EBS) survive; anything not in a systemd unit must be restarted by hand. | — |
 
@@ -49,3 +50,4 @@ Found while building this repo and fixed in [allensanborn/floci](https://github.
 | `kthw/06-terraform-fidelity` | Instance security groups, default-egress revoke, `KmsKeyId`, root volume size and encryption, and flow-log tags did not round-trip, so every plan replaced 8 resources |
 | `kthw/07-vpc-network-cleanup` | A deleted VPC's network survived and pushed the next VPC onto a substitute CIDR |
 | `kthw/08-systemd-private-cgroupns` | Every systemd guest shared the Docker host's cgroup tree, so the two nodes' kubelets tore down each other's pods (lab 12 crash-looped) |
+| `kthw/09-run-instances-ebs-optimized` | `ebs_optimized` was dropped at launch, so every plan replaced the instances |

@@ -32,5 +32,15 @@ if [ -n "$id" ] && [ "$(cat "$dmi/board_asset_tag" 2>/dev/null)" != "$id" ]; the
   printf 'Amazon EC2\n' > "$dmi/sys_vendor"
 fi
 
-# 3. Per-instance SSH host keys (removed from the image at build time).
+# 3. nf_conntrack_max is global to the kernel, so it is read-only outside the host's
+#    network namespace, and kube-proxy (KTHW lab 9) exits when it cannot raise it. Give the
+#    guest a writable copy of that one file: the write is absorbed, and the real limit stays
+#    the Docker host's (GAPS.md).
+ct=/proc/sys/net/netfilter/nf_conntrack_max
+if [ -e "$ct" ] && ! [ -w "$ct" ]; then
+  cat "$ct" > /run/floci-nf_conntrack_max
+  mount --bind /run/floci-nf_conntrack_max "$ct"
+fi
+
+# 4. Per-instance SSH host keys (removed from the image at build time).
 ssh-keygen -A

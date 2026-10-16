@@ -6,7 +6,7 @@ on:
     inputs:
       floci_ref:
         description: allensanborn/floci ref to build floci from (the KTHW stack tip)
-        default: kthw/08-systemd-private-cgroupns
+        default: kthw/09-run-instances-ebs-optimized
 permissions:
   contents: read
 env:
