@@ -5,3 +5,16 @@
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Keep .terraform.lock.hcl committed: it is the provider pin (CM-2 / SR-3 evidence).
+.scratch/

@@ -75,3 +75,14 @@ _Add a brief overview of your project architecture_
 ## Conventions & Patterns
 
 _Add your project-specific conventions here_
+
+## This project
+
+Read [docs/adr/0001-kthw-on-floci.md](docs/adr/0001-kthw-on-floci.md) before changing anything. It records the 23 decisions this repo is built on. Don't re-litigate them without the human.
+
+- **Standing rule:** a bad practice that is core to KTHW defers to the tutorial's ease of use, but it must be documented with remediation steps. A gap (floci-vs-AWS or security) is acceptable only if it is documented **and** quantified.
+- **Never vendor KTHW text** (CC BY-NC-SA 4.0). Link to it.
+- **Gruntwork's commercial modules are oracles only:** read them and run their tests, but never copy, vendor or link them. Public Gruntwork repos (terratest, cloud-nuke) may be used directly.
+- **Floci work is tracked as `floci-` beads in the floci-harness repo** (epic `floci-5fbo`). The fixes live as one linear stack in the allensanborn/floci fork. Don't start, stop or tune the floci-harness loop from here; another session owns it.
+- **Never write to system temp** (`/tmp`, `$TMPDIR`). Use `./.scratch/` (gitignored).
+- **CI builds are manual (`workflow_dispatch`) only**, except the cheap PR static checks.
