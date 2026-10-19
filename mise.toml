@@ -65,7 +65,7 @@ description = "Run all of Kubernetes The Hard Way on the machines and check the 
 run = "scripts/test-kthw.sh"
 
 [tasks.prowler]
-description = "Prowler FedRAMP Moderate checks against the target, documented exceptions muted"
+description = "Prowler FedRAMP Moderate, NIST 800-53 r5 and CIS 7.0 checks against the target, exceptions muted"
 run = "scripts/prowler.sh"
 
 [tasks.lint]
