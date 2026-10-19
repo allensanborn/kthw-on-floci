@@ -21,6 +21,8 @@ locals {
     vpc-changes                = "{ ($.eventName = CreateVpc) || ($.eventName = DeleteVpc) || ($.eventName = ModifyVpcAttribute) || ($.eventName = AcceptVpcPeeringConnection) || ($.eventName = CreateVpcPeeringConnection) || ($.eventName = DeleteVpcPeeringConnection) || ($.eventName = RejectVpcPeeringConnection) || ($.eventName = AttachClassicLinkVpc) || ($.eventName = DetachClassicLinkVpc) || ($.eventName = DisableVpcClassicLink) || ($.eventName = EnableVpcClassicLink) }"
     # Not CIS: writes to workload/'s SSH key parameters, the root-SSH trust anchor (E-16).
     # Expected when a machine first boots or is rebuilt, and on apply and destroy.
+    # Assumes this root's name_prefix equals workload's cluster_name (both default "kthw"),
+    # which names the parameters /<cluster_name>/...; change one, change the other.
     ssm-ssh-key-changes   = "{ ($.eventSource = ssm.amazonaws.com) && (($.eventName = PutParameter) || ($.eventName = DeleteParameter)) && ($.requestParameters.name = \"/${var.name_prefix}/*\") }"
     organizations-changes = "{ ($.eventSource = organizations.amazonaws.com) && (($.eventName = AcceptHandshake) || ($.eventName = AttachPolicy) || ($.eventName = CreateAccount) || ($.eventName = CreateOrganizationalUnit) || ($.eventName = CreatePolicy) || ($.eventName = DeclineHandshake) || ($.eventName = DeleteOrganization) || ($.eventName = DeleteOrganizationalUnit) || ($.eventName = DeletePolicy) || ($.eventName = DetachPolicy) || ($.eventName = DisablePolicyType) || ($.eventName = EnablePolicyType) || ($.eventName = InviteAccountToOrganization) || ($.eventName = LeaveOrganization) || ($.eventName = MoveAccount) || ($.eventName = RemoveAccountFromOrganization) || ($.eventName = UpdatePolicy) || ($.eventName = UpdateOrganizationalUnit)) }"
   }
@@ -49,7 +51,7 @@ resource "aws_cloudwatch_metric_alarm" "cis" {
   for_each = local.cis_metric_filters
 
   alarm_name          = "${var.name_prefix}-${each.key}"
-  alarm_description   = "CIS AWS Foundations section 4: ${each.key}"
+  alarm_description   = each.key == "ssm-ssh-key-changes" ? "Not CIS: writes to the root-SSH trust anchor parameters /${var.name_prefix}/* (docs/exceptions.md E-16)" : "CIS AWS Foundations section 4: ${each.key}"
   namespace           = "${var.name_prefix}/cis"
   metric_name         = aws_cloudwatch_log_metric_filter.cis[each.key].metric_transformation[0].name
   statistic           = "Sum"
