@@ -34,7 +34,7 @@ Status as of 2026-10-16 (bead links 2026-10-19), floci built from the [KTHW stac
 
 | Gap | AWS | floci | Effect here, quantified | Closing it |
 |---|---|---|---|---|
-| CloudTrail does not deliver to CloudWatch Logs (`floci-5fbo.27`) | Events reach the trail's log group within minutes; the CIS alarms fire from them | The log group and role are recorded (`kthw/11`); nothing is delivered | Prowler `cloudtrail_cloudwatch_logging_enabled` fails on floci (the one unmuted FedRAMP Moderate r4 row, 1 of 191 in the 2026-10-16 run; also the one unmuted NIST 800-53 r5 failure on 2026-10-19). The 15 CIS metric filters and alarms exist but never see an event. | Deliver trail events to the log group (floci). |
+| CloudTrail does not deliver to CloudWatch Logs (`floci-5fbo.27`) | Events reach the trail's log group within minutes; the CIS alarms fire from them | The log group and role are recorded (`kthw/11`); nothing is delivered | Prowler `cloudtrail_cloudwatch_logging_enabled` fails on floci (the one unmuted FedRAMP Moderate r4 row, 1 of 191 in the 2026-10-16 run; also the one unmuted NIST 800-53 r5 failure on 2026-10-19). The 16 metric filters and alarms (15 CIS, plus one on the SSH key parameters, E-16) exist but never see an event. | Deliver trail events to the log group (floci). |
 | Security Hub evaluates nothing (`floci-5fbo.28`) | Standards run their controls and produce findings | Subscriptions are recorded (`kthw/10`), no controls run | Security Hub shows no findings on floci. Prowler stands in for the evaluation. | — |
 
 ## Access
@@ -45,6 +45,9 @@ Status as of 2026-10-16 (bead links 2026-10-19), floci built from the [KTHW stac
 | Instance Connect is authorized by floci's IAM enforcement only (`floci-5fbo.30`) | `ec2-instance-connect:SendSSHPublicKey` with `ec2:osuser` conditions | Allowed unless floci's IAM enforcement is on; `ec2:osuser` is not evaluated | Any local caller can push a key for any user. | Condition keys in floci IAM. |
 | The tunnel's SigV4 signature is not verified (`floci-5fbo.31`) | Presigned URL checked | Scope and expiry checked, signature not | Same as above. | — |
 | The tunnel needs port 443 and an OS-trusted CA (`floci-5fbo.32`) | Public endpoint, public CA | The AWS CLI dials 443 and trusts only the OS store | Use the console container (`mise run connect`), or publish `127.0.0.1:443` and trust floci's CA on the host. | — |
+| SSM `GetParameter` without `WithDecryption` returns a SecureString's plaintext (`floci-5fbo.33`) | The encrypted value, unless the caller asks to decrypt and may use the key | The plaintext (measured 2026-10-19) | The SSH key parameters are SecureString so that only principals allowed the cluster key can read or forge them (E-16); on floci any reader of a parameter sees its value. | Return ciphertext unless `WithDecryption` (floci). |
+| SSM `PutParameter --overwrite` may turn a SecureString into a String (`floci-5fbo.34`) | UNVERIFIED here; to confirm on AWS | Allowed; the parameter becomes a String (measured 2026-10-19) | The machines reject a non-SecureString key value, so this is caught here, not exploited. | Match AWS once confirmed (floci). |
+| KMS key policies and grants, and S3 bucket policies, are not enforced (`floci-5fbo.35`) | Every KMS and S3 call is checked against them | Stored, not evaluated (reported by the 2026-10-19 Terraform review; not re-measured) | A missing key grant (Config's delivery role) or a wrong source-account deny passes on floci and fails, or leaks, on AWS. Checked on AWS in `kthw-q85.16`. | Policy evaluation for KMS and S3 (floci). |
 
 ## Fixed in the floci stack
 

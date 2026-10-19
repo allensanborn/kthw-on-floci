@@ -63,6 +63,15 @@ Then follow labs 4 to 12 as written.
 
 To stop for the day, `mise run down`: the machines stop and keep their disks, and `mise run up` starts them again. When you are done, `mise run destroy` deletes them.
 
+### Upgrading a cluster made before 2026-10-19
+
+Terraform now owns the four SSH key parameters under `/kthw/`; before `4abee99` the machines created them at runtime. Delete them once, from `mise run console` (with the same `KTHW_TARGET`), before your next `mise run apply`, or it fails with `ParameterAlreadyExists`:
+
+```sh
+aws ssm delete-parameters --names /kthw/jumpbox/root-ssh-public-key \
+  /kthw/hosts/server/ssh-host-ed25519-key /kthw/hosts/node-0/ssh-host-ed25519-key /kthw/hosts/node-1/ssh-host-ed25519-key
+```
+
 ## Where the tutorial would fail a review
 
 KTHW optimizes for learning. These steps stay, because the tutorial needs them, each with its remediation in [docs/exceptions.md](docs/exceptions.md):
@@ -73,6 +82,8 @@ KTHW optimizes for learning. These steps stay, because the tutorial needs them, 
 | A hand-made CA whose key sits on the jumpbox (lab 4) | SC-12 key management | A managed CA with KMS- or HSM-backed keys |
 | Private keys and kubeconfigs copied with `scp` (labs 4 to 6) | IA-5, SC-28 | Short-lived credentials from an identity provider |
 | Pre-release containerd, runc and etcd (lab 2's downloads) | SI-2, CM-2 | Released, patched versions |
+
+This repo's own departures are numbered there too. Two matter to anyone reusing it: the root-SSH trust anchor is an SSM parameter, so whoever may write it and use the cluster key can add a root key to every cluster member (E-16), and every AWS call uses the standard, not FIPS 140, endpoints (E-17).
 
 ## Testing
 

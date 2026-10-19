@@ -36,7 +36,7 @@ After the restart: both nodes Ready again, lab 3's hostnames (`server.kubernetes
 
 `mise run prowler` (then FedRAMP only): Prowler 5.45.0, `fedramp_moderate_revision_4_aws` (Prowler has no Rev5 FedRAMP framework), us-east-1 only, against floci with `account-baseline` and `workload` applied. 192 findings. Without the mutelist: 181 of 191 requirement rows pass (94.8%). With the documented exceptions muted (`compliance/prowler-mutelist.yaml`, E-12 to E-15): 1 requirement row fails, `cloudtrail_cloudwatch_logging_enabled`, a floci gap (GAPS.md, Audit) that passes on AWS.
 
-Fixed after the first Prowler run, which had 18 failing rows: CloudTrail S3 data events, the 15 CIS section 4 metric filters and alarms, and deny-all default network ACLs (the workload VPC's now admits only in-VPC traffic and TCP replies).
+Fixed after the first Prowler run, which had 18 failing rows: CloudTrail S3 data events, the 15 CIS section 4 metric filters and alarms (a 16th, not CIS, on the SSH key parameters was added in `5885815`), and deny-all default network ACLs (the workload VPC's now admits only in-VPC traffic and TCP replies).
 
 ## Not covered by this run
 
