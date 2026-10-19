@@ -10,19 +10,23 @@ cat > /etc/kthw/env <<'ENV'
 KTHW_NAME=${name}
 KTHW_REGION=${region}
 KTHW_SSM_PREFIX=${ssm_prefix}
+KTHW_SSM_ENDPOINT=${ssm_endpoint}
+KTHW_SSM_KEY_ID=${ssm_key_id}
 KTHW_CONTAINERD_VOLUME_ID=${containerd_volume_id}
 ENV
 
+# Egress through the NAT gateway can lag first boot by a minute or two on AWS: retry for 10.
+retry() { for _ in $(seq 1 60); do "$@" && return 0; sleep 10; done; return 1; }
+packages() { apt-get update -q && apt-get install -y -q --no-install-recommends ca-certificates curl jq openssh-server; }
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -q
-apt-get install -y -q --no-install-recommends ca-certificates curl jq openssh-server
+retry packages
 
 # --- EC2 Instance Connect agent (not packaged by Debian 12) ------------------
 EIC_VERSION=1.1.17
 EIC_SHA256=dd2e74c5086b97ea26166927ff8f0feb9a896e87d532b22f01195ededdff8d8a
 if [ ! -x /usr/share/ec2-instance-connect/eic_run_authorized_keys ]; then
   tmp=$(mktemp -d /root/eic.XXXXXX)
-  curl -fsSL -o "$tmp/eic.tar.gz" \
+  retry curl -fsSL -o "$tmp/eic.tar.gz" \
     "https://github.com/aws/aws-ec2-instance-connect-config/archive/refs/tags/$EIC_VERSION.tar.gz"
   echo "$EIC_SHA256  $tmp/eic.tar.gz" | sha256sum -c -
   tar -xzf "$tmp/eic.tar.gz" -C "$tmp"
@@ -63,35 +67,47 @@ curl -fsS --aws-sigv4 "aws:amz:$KTHW_REGION:ssm" \
   --user "$(jq -r .AccessKeyId <<<"$creds"):$(jq -r .SecretAccessKey <<<"$creds")" \
   -H "x-amz-security-token: $(jq -r .Token <<<"$creds")" \
   -H "X-Amz-Target: AmazonSSM.$1" -H 'Content-Type: application/x-amz-json-1.1' \
-  --data "$2" "$${endpoint:-https://ssm.$KTHW_REGION.amazonaws.com}/"
+  --data "$2" "$${endpoint:-$KTHW_SSM_ENDPOINT}/"
 SSM
 chmod 0700 /usr/local/sbin/kthw-ssm
 
 cat > /usr/local/sbin/kthw-ssh-trust <<'TRUST'
 #!/bin/bash
-# Exchange public keys through SSM until this machine's half of lab 3 holds.
+# Exchange public keys through SSM until this machine's half of lab 3 holds. Runs at boot
+# and every 5 minutes, so a peer that was rebuilt alone is trusted again without
+# rebuilding the rest.
 set -euo pipefail
 . /etc/kthw/env
-put() { kthw-ssm PutParameter "$(jq -n --arg n "$1" --arg v "$2" '{Name:$n,Value:$v,Type:"String",Overwrite:true}')" >/dev/null; }
-get() { kthw-ssm GetParameter "$(jq -n --arg n "$1" '{Name:$n}')" | jq -er .Parameter.Value; }
+put() { kthw-ssm PutParameter "$(jq -n --arg n "$1" --arg v "$2" --arg k "$KTHW_SSM_KEY_ID" '{Name:$n,Value:$v,Type:"SecureString",KeyId:$k,Overwrite:true}')" >/dev/null; }
+# A key is a SecureString holding anything but Terraform's "pending" placeholder.
+get() { kthw-ssm GetParameter "$(jq -n --arg n "$1" '{Name:$n,WithDecryption:true}')" | jq -er '.Parameter | select(.Type == "SecureString" and .Value != "pending") | .Value'; }
 retry() { for _ in $(seq 1 180); do "$@" && return 0; sleep 10; done; return 1; }
+publish() { [ "$(get "$1" 2>/dev/null)" = "$2" ] || retry put "$1" "$2"; }
 install -d -m 0700 /root/.ssh
 
 if [ "$KTHW_NAME" = jumpbox ]; then
   [ -f /root/.ssh/id_ed25519 ] || ssh-keygen -q -t ed25519 -N '' -C root@jumpbox -f /root/.ssh/id_ed25519
-  retry put "$KTHW_SSM_PREFIX/jumpbox/root-ssh-public-key" "$(cat /root/.ssh/id_ed25519.pub)"
+  publish "$KTHW_SSM_PREFIX/jumpbox/root-ssh-public-key" "$(cat /root/.ssh/id_ed25519.pub)"
   : > /root/.ssh/known_hosts.kthw
   while read -r ip fqdn host _; do
     key=$(retry get "$KTHW_SSM_PREFIX/hosts/$host/ssh-host-ed25519-key")
     echo "$ip,$host,$fqdn $key" >> /root/.ssh/known_hosts.kthw
   done < /root/machines.txt
-  mv /root/.ssh/known_hosts.kthw /root/.ssh/known_hosts
+  if cmp -s /root/.ssh/known_hosts.kthw /root/.ssh/known_hosts; then rm /root/.ssh/known_hosts.kthw; else mv /root/.ssh/known_hosts.kthw /root/.ssh/known_hosts; fi
 else
-  retry put "$KTHW_SSM_PREFIX/hosts/$KTHW_NAME/ssh-host-ed25519-key" \
+  publish "$KTHW_SSM_PREFIX/hosts/$KTHW_NAME/ssh-host-ed25519-key" \
     "$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
   key=$(retry get "$KTHW_SSM_PREFIX/jumpbox/root-ssh-public-key")
-  grep -qxF "$key" /root/.ssh/authorized_keys 2>/dev/null || echo "$key" >> /root/.ssh/authorized_keys
+  # Replace the jumpbox key this unit installed before, if the jumpbox was rebuilt since.
+  old=$(cat /etc/kthw/jumpbox-key 2>/dev/null || true)
+  touch /root/.ssh/authorized_keys
+  if [ -n "$old" ] && [ "$old" != "$key" ]; then
+    grep -vxF "$old" /root/.ssh/authorized_keys > /root/.ssh/authorized_keys.kthw || true
+    mv /root/.ssh/authorized_keys.kthw /root/.ssh/authorized_keys
+  fi
+  grep -qxF "$key" /root/.ssh/authorized_keys || echo "$key" >> /root/.ssh/authorized_keys
   chmod 0600 /root/.ssh/authorized_keys
+  echo "$key" > /etc/kthw/jumpbox-key
 fi
 TRUST
 chmod 0700 /usr/local/sbin/kthw-ssh-trust
@@ -104,8 +120,19 @@ After=network-online.target ssh.service
 
 [Service]
 Type=oneshot
-RemainAfterExit=yes
 ExecStart=/usr/local/sbin/kthw-ssh-trust
+UNIT
+
+cat > /etc/systemd/system/kthw-ssh-trust.timer <<'UNIT'
+[Unit]
+Description=KTHW: re-check SSH keys in SSM Parameter Store every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
 UNIT
 
 %{ if name == "jumpbox" ~}
@@ -154,7 +181,15 @@ WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
 systemctl enable --now --no-block kthw-containerd-volume.service
+# Lab 9's containerd never starts on the root disk: without the volume it does not start.
+install -d -m 0755 /etc/systemd/system/containerd.service.d
+cat > /etc/systemd/system/containerd.service.d/kthw-volume.conf <<'UNIT'
+[Unit]
+Requires=kthw-containerd-volume.service
+After=kthw-containerd-volume.service
+UNIT
 %{ endif ~}
 systemctl daemon-reload
-systemctl start --no-block kthw-ssh-trust.service
+systemctl enable kthw-ssh-trust.timer
+systemctl start --no-block kthw-ssh-trust.service kthw-ssh-trust.timer
 echo "kthw user-data done for ${name}"

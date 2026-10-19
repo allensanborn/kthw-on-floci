@@ -1,5 +1,5 @@
-# One customer-managed key for this cluster's data at rest: EBS volumes and
-# the flow-log group (SC-12, SC-13, SC-28).
+# One customer-managed key for this cluster's data at rest: EBS volumes, the
+# flow-log group and the SSH key parameters (SC-12, SC-13, SC-28).
 data "aws_iam_policy_document" "kms" {
   #checkov:skip=CKV_AWS_109:A key policy's "*" resource is the key itself; access is scoped by principal and condition
   #checkov:skip=CKV_AWS_111:Same: key policy, not an identity policy
@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "kms" {
 }
 
 resource "aws_kms_key" "this" {
-  description             = "${var.cluster_name}: EBS volumes and VPC flow logs"
+  description             = "${var.cluster_name}: EBS volumes, VPC flow logs, SSH key parameters"
   enable_key_rotation     = true
   deletion_window_in_days = 30
   policy                  = data.aws_iam_policy_document.kms.json

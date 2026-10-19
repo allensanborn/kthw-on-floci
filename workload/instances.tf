@@ -48,12 +48,19 @@ resource "aws_instance" "machine" {
     name                 = each.key
     region               = var.region
     ssm_prefix           = local.ssm_prefix
+    ssm_endpoint         = "https://ssm.${var.region}.${data.aws_partition.current.dns_suffix}"
+    ssm_key_id           = aws_kms_alias.this.name
     members              = { for k, v in local.cluster_members : k => v.ip }
     machines_txt         = local.machines_txt
     containerd_volume_id = each.value.data_volume ? aws_ebs_volume.containerd[each.key].id : ""
   })
 
   tags = { Name = "${var.cluster_name}-${each.key}" }
+
+  # First boot installs packages and the EIC agent from the internet, so egress through the
+  # NAT gateway must exist before any machine starts; and the key parameters must exist
+  # (as "pending") so no machine can read a value left from an earlier cluster.
+  depends_on = [aws_nat_gateway.this, aws_route_table_association.private, aws_ssm_parameter.ssh_key]
 }
 
 resource "aws_volume_attachment" "containerd" {
@@ -62,4 +69,7 @@ resource "aws_volume_attachment" "containerd" {
   device_name = "/dev/xvdf"
   volume_id   = each.value.id
   instance_id = aws_instance.machine[each.key].id
+  # containerd's volume is mounted: detaching it from a running machine hangs until the
+  # provider times out, so stop the machine first (destroy, or replacing a node).
+  stop_instance_before_detaching = true
 }
