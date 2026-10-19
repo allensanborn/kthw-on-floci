@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       floci_ref:
-        description: allensanborn/floci ref to build floci from (the KTHW stack tip)
-        default: kthw/14-imds-after-start
+        description: allensanborn/floci commit to build floci from (the KTHW stack tip, kthw/14-imds-after-start; keep equal to scripts/floci-image.sh)
+        default: 18cb970984bfc7255e86103b2558303d72f4079a
 permissions:
   contents: read
 env:
@@ -17,17 +17,23 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
+          persist-credentials: false
           repository: allensanborn/floci
           ref: ${{ inputs.floci_ref }}
           path: .scratch/floci
       - name: Build floci
-        run: docker build -q -f docker/Dockerfile -t floci-kthw:dev .
+        # Labelled like scripts/floci-image.sh builds it, so `mise run up` reuses it.
+        run: docker build -q --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" -f docker/Dockerfile -t floci-kthw:dev .
         working-directory: .scratch/floci
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
       - run: mise run doctor
       - run: mise run up
+        env:
+          FLOCI_REF: ${{ inputs.floci_ref }}
       - run: mise run bootstrap -- -auto-approve -input=false
       - run: mise run apply -- -auto-approve -input=false
       - name: Second plan is empty

@@ -11,6 +11,6 @@ else
 fi
 exec docker run --rm $net -e AWS_DEFAULT_REGION="$AWS_REGION" \
   -v "$out:/home/prowler/output" -v "$KTHW_ROOT/compliance:/compliance:ro" \
-  prowlercloud/prowler:5.45.0 aws --region "$AWS_REGION" \
+  prowlercloud/prowler:5.45.0@sha256:91cbe8cf1fbc8807dd2e389fbe3a0dd822b84697bb868cee1a2bd42bb6db32d7 aws --region "$AWS_REGION" \
   --compliance fedramp_moderate_revision_4_aws --mutelist-file /compliance/prowler-mutelist.yaml \
   -M csv --output-directory /home/prowler/output --no-banner

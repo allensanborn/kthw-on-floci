@@ -6,7 +6,7 @@ fail=0
 check() { name=$1; shift
   if out=$("$@" 2>&1); then echo "ok    $name"; else echo "FAIL  $name: $(echo "$out" | tail -1)"; fail=1; fi; }
 probe() { docker run --rm --privileged --cgroupns=host -v /lib/modules:/lib/modules:ro \
-  -v /sys/fs/cgroup:/sys/fs/cgroup debian:12 sh -c "$1"; }
+  -v /sys/fs/cgroup:/sys/fs/cgroup debian:12@sha256:2c037a04925515fdd6ea85ea14a682d0e79931f5e9f5d07b6dbfc6ba12f9e858 sh -c "$1"; }
 
 check "docker daemon reachable (floci runs instances as containers)" docker info --format '{{.ServerVersion}}'
 check "docker compose v2 (floci/compose.yaml)" docker compose version

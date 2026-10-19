@@ -1,7 +1,7 @@
 # Debian 12 guest image for floci: stands in for the official Debian 12 AMI.
 # Only emulation fixes live here. Everything KTHW needs is installed by the
 # workload's user_data, so the same script runs on real AWS and on floci.
-FROM debian:12
+FROM debian:12@sha256:2c037a04925515fdd6ea85ea14a682d0e79931f5e9f5d07b6dbfc6ba12f9e858
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       systemd systemd-sysv dbus openssh-server sudo curl ca-certificates \
