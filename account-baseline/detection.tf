@@ -7,12 +7,13 @@ module "config_bucket" {
   namespace = var.name_prefix
   name      = "config"
 
-  sse_algorithm            = "aws:kms"
-  kms_master_key_arn       = aws_kms_key.audit.arn
-  versioning_enabled       = true
-  create_access_log_bucket = true
-  expiration_days          = var.log_retention_days
-  force_destroy            = false
+  sse_algorithm          = "aws:kms"
+  kms_master_key_arn     = aws_kms_key.audit.arn
+  versioning_enabled     = true
+  access_log_bucket_name = aws_s3_bucket.access_logs["config"].bucket
+  expiration_days        = var.log_retention_days
+  force_destroy          = false
+  policy                 = data.aws_iam_policy_document.audit_bucket_source["config"].json
 }
 
 locals {
@@ -56,6 +57,27 @@ module "config" {
     enabled          = true
     tags             = {}
   } }
+}
+
+# Config delivers through the module's IAM role, not its service principal, so the key
+# policy's ConfigDeliversEncrypted grant does not cover delivery: the role needs the key.
+# The key policy delegates to IAM, so this role policy is enough.
+data "aws_iam_policy_document" "config_audit_key" {
+  statement {
+    actions   = ["kms:GenerateDataKey", "kms:Decrypt"]
+    resources = [aws_kms_key.audit.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${var.region}.${data.aws_partition.current.dns_suffix}"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "config_audit_key" {
+  name   = "audit-key"
+  role   = reverse(split("/", module.config.iam_role))[0]
+  policy = data.aws_iam_policy_document.config_audit_key.json
 }
 
 module "guardduty" {

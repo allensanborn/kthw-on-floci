@@ -6,6 +6,8 @@ locals {
   trail_name = "${var.name_prefix}-account"
   trail_arn  = "arn:${local.partition}:cloudtrail:${var.region}:${local.account_id}:trail/${local.trail_name}"
   log_group  = "/${var.name_prefix}/cloudtrail"
+  # The cloudposse buckets' names are "<name_prefix>-<key>".
+  audit_buckets = toset(["cloudtrail", "config"])
 }
 
 data "aws_iam_policy_document" "audit_key" {
@@ -110,6 +112,32 @@ resource "aws_kms_alias" "audit" {
   target_key_id = aws_kms_key.audit.key_id
 }
 
+# The modules grant CloudTrail and Config write access to the audit buckets with no source
+# condition, so another account's trail could deliver into them (confused deputy, AU-9).
+# This denies every delivery that is not on this account's behalf.
+data "aws_iam_policy_document" "audit_bucket_source" {
+  for_each = local.audit_buckets
+
+  statement {
+    sid     = "DenyDeliveriesForOtherAccounts"
+    effect  = "Deny"
+    actions = ["s3:PutObject", "s3:GetBucketAcl"]
+    resources = [
+      "arn:${local.partition}:s3:::${var.name_prefix}-${each.key}",
+      "arn:${local.partition}:s3:::${var.name_prefix}-${each.key}/*",
+    ]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com", "config.amazonaws.com"]
+    }
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.account_id]
+    }
+  }
+}
+
 module "trail_bucket" {
   # v0.33.0, pinned by commit: a registry version is a movable git tag.
   source = "git::https://github.com/cloudposse/terraform-aws-cloudtrail-s3-bucket.git?ref=57d406179c9adfcaeca5c3d91d8f71200353b5d4"
@@ -118,12 +146,140 @@ module "trail_bucket" {
   name      = "cloudtrail"
 
   # Overrides where the module's defaults fall short of the bar:
-  sse_algorithm            = "aws:kms" # default AES256; SC-28 with a customer-managed key
-  kms_master_key_arn       = aws_kms_key.audit.arn
-  versioning_enabled       = true # default false; AU-9 protection of audit information
-  create_access_log_bucket = true # default false; AU-2 access to the logs is itself logged
-  expiration_days          = var.log_retention_days
-  force_destroy            = false # kept explicit: audit logs are never deleted with the stack
+  sse_algorithm          = "aws:kms" # default AES256; SC-28 with a customer-managed key
+  kms_master_key_arn     = aws_kms_key.audit.arn
+  versioning_enabled     = true                                           # default false; AU-9 protection of audit information
+  access_log_bucket_name = aws_s3_bucket.access_logs["cloudtrail"].bucket # AU-2: access to the logs is itself logged
+  expiration_days        = var.log_retention_days
+  force_destroy          = false # kept explicit: audit logs are never deleted with the stack
+  policy                 = data.aws_iam_policy_document.audit_bucket_source["cloudtrail"].json
+}
+
+# --- S3 server access logs for the two audit buckets (AU-2) -------------------
+# Not the modules' own access-log buckets: those inherit the audit bucket's SSE-KMS, and
+# server access logging cannot deliver to an SSE-KMS bucket. SSE-S3, as in bootstrap/.
+
+resource "aws_s3_bucket" "access_logs" {
+  #checkov:skip=CKV_AWS_144:Exception E-5 (docs/exceptions.md): single-region learning environment; production replicates logs to a second region
+  #checkov:skip=CKV_AWS_145:S3 server access logging cannot deliver to an SSE-KMS bucket; SSE-S3 is the only option
+  #checkov:skip=CKV_AWS_18:Exception E-14 (docs/exceptions.md): a log bucket logging into itself recurses
+  for_each = local.audit_buckets
+
+  bucket = "${var.name_prefix}-${each.key}-s3-access-logs"
+}
+
+resource "aws_s3_bucket_public_access_block" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket                  = aws_s3_bucket.access_logs[each.key].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket = aws_s3_bucket.access_logs[each.key].id
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket = aws_s3_bucket.access_logs[each.key].id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket = aws_s3_bucket.access_logs[each.key].id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket = aws_s3_bucket.access_logs[each.key].id
+  rule {
+    id     = "expire"
+    status = "Enabled"
+    filter {}
+    expiration {
+      days = var.log_retention_days
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_notification" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket      = aws_s3_bucket.access_logs[each.key].id
+  eventbridge = true
+}
+
+data "aws_iam_policy_document" "access_logs" {
+  for_each = local.audit_buckets
+
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.access_logs[each.key].arn, "${aws_s3_bucket.access_logs[each.key].arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid       = "S3ServerAccessLogs"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.access_logs[each.key].arn}/*"]
+    principals {
+      type        = "Service"
+      identifiers = ["logging.s3.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.account_id]
+    }
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:${local.partition}:s3:::${var.name_prefix}-${each.key}"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "access_logs" {
+  for_each = local.audit_buckets
+
+  bucket     = aws_s3_bucket.access_logs[each.key].id
+  policy     = data.aws_iam_policy_document.access_logs[each.key].json
+  depends_on = [aws_s3_bucket_public_access_block.access_logs]
 }
 
 resource "aws_cloudwatch_log_group" "trail" {
