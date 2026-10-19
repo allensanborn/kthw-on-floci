@@ -19,7 +19,7 @@ services:
       - ./catalog.yaml:/etc/floci/catalog.yaml:ro
       - floci-data:/app/data
   # Your terminal into "AWS": `docker compose -f floci/compose.yaml run --rm console`.
-  console:
+  console: &console
     build: ../console
     image: kthw/console:dev
     profiles: [console]
@@ -32,5 +32,22 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: us-east-1
+  # The same console for KTHW_TARGET=aws (scripts pick it): your own credentials and
+  # region, read-only, and no floci (no endpoint, no floci CA, no 443 forward).
+  console-aws:
+    <<: *console
+    profiles: [console-aws]
+    depends_on: []
+    volumes:
+      - ..:/work:ro
+      - ${HOME}/.aws:/root/.aws:ro
+    environment:
+      KTHW_TARGET: aws
+      AWS_PROFILE:
+      AWS_REGION:
+      AWS_DEFAULT_REGION:
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+      AWS_SESSION_TOKEN:
 volumes:
   floci-data:

@@ -10,9 +10,11 @@ case "${KTHW_TARGET:-floci}" in
     export AWS_REGION=${AWS_REGION:-us-east-1}
     unset AWS_PROFILE AWS_SESSION_TOKEN
     KTHW_BACKEND=$KTHW_ROOT/backends/floci.s3.tfbackend
+    KTHW_CONSOLE=console
     ;;
   aws)
     unset AWS_ENDPOINT_URL
+    KTHW_CONSOLE=console-aws # floci/compose.yaml: your credentials, no floci
     KTHW_BACKEND=$KTHW_ROOT/backends/aws.s3.tfbackend
     [ -f "$KTHW_BACKEND" ] || { echo "KTHW_TARGET=aws needs $KTHW_BACKEND (copy the .example)" >&2; exit 1; }
     ;;
