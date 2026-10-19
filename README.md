@@ -63,6 +63,8 @@ Then follow labs 4 to 12 as written.
 
 To stop for the day, `mise run down`: the machines stop and keep their disks, and `mise run up` starts them again. When you are done, `mise run destroy` deletes them.
 
+After the floci image changes (a new pinned commit), the running machines lose their metadata service ([GAPS.md](GAPS.md#compute-and-storage), `floci-5fbo.36`): run `mise run destroy` and `mise run apply` before continuing.
+
 ### Upgrading a cluster made before 2026-10-19
 
 Terraform now owns the four SSH key parameters under `/kthw/`; before `4abee99` the machines created them at runtime. Delete them once, from `mise run console` (with the same `KTHW_TARGET`), before your next `mise run apply`, or it fails with `ParameterAlreadyExists`:

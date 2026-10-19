@@ -12,7 +12,7 @@ Mutelist:
           Description: "E-12: machines are reached by EC2 Instance Connect, not SSM; production adds the SSM agent for patching and inventory"
         "s3_bucket_server_access_logging_enabled":
           Regions: ["*"]
-          Resources: ["kthw-cloudtrail-access-logs", "kthw-config-access-logs", "kthw-tfstate-logs-.*"]
+          Resources: ["kthw-cloudtrail-s3-access-logs", "kthw-config-s3-access-logs", "kthw-tfstate-logs-.*"]
           Description: "E-14: access-log buckets do not log themselves (it would recurse); they are versioned, BPA-protected and TLS-only"
         "cloudtrail_bedrock_logging_enabled":
           Regions: ["*"]
