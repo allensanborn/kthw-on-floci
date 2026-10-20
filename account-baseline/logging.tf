@@ -99,6 +99,9 @@ data "aws_iam_policy_document" "audit_key" {
     }
   }
 
+  # Not what this account's Config uses: it delivers through its IAM role, which has its
+  # own grant (detection.tf). This covers Config's service principal, which delivers when
+  # Config runs with its service-linked role instead.
   statement {
     sid       = "ConfigDeliversEncrypted"
     actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
@@ -417,4 +420,8 @@ module "cloudtrail" {
       ]
     },
   ]
+
+  # The trail delivers to CloudWatch Logs through this role from its first event. The
+  # provider retries CreateTrail while IAM propagates, but only once the policy exists.
+  depends_on = [aws_iam_role_policy.trail_to_logs]
 }
