@@ -19,7 +19,7 @@ dirty=$(git -C "$KTHW_ROOT" status --porcelain --untracked-files=no | grep -q . 
 } > "$log"
 echo "log: $log"; cat "$log"
 status=0
-docker compose -f "$KTHW_ROOT/floci/compose.yaml" --profile "$KTHW_CONSOLE" run --rm -T "$KTHW_CONSOLE" \
+docker compose -f "$KTHW_ROOT/floci/compose.yaml" --profile "$KTHW_CONSOLE" run --no-deps --rm -T "$KTHW_CONSOLE" \
   python3 test/kthw/run.py "$@" 2>&1 | tee -a "$log" || status=$?
 echo "finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) exit $status" >> "$log"
 echo "log sha256: $(shasum -a 256 "$log" | cut -d' ' -f1)  $log"

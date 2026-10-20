@@ -23,6 +23,9 @@ services:
     build: ../console
     image: kthw/console:dev
     profiles: [console]
+    # Scripts run the console with --no-deps: `compose run` would otherwise re-create floci
+    # whenever its config differs (another FLOCI_IMAGE), and a re-created floci strands the
+    # running machines (floci-5fbo.36). `mise run up` is what starts floci.
     depends_on: [floci]
     working_dir: /work
     volumes:

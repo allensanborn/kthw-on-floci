@@ -54,7 +54,7 @@ run = "scripts/tf.sh workload destroy"
 
 [tasks.console]
 description = "Open a shell with the AWS CLI and SSH, pointed at the target (floci by default)"
-run = 'c=console; [ "$KTHW_TARGET" != aws ] || c=console-aws; docker compose -f floci/compose.yaml --profile $c run --rm $c'
+run = 'c=console; [ "$KTHW_TARGET" != aws ] || c=console-aws; docker compose -f floci/compose.yaml --profile $c run --no-deps --rm $c'
 
 [tasks.connect]
 description = "SSH to the jumpbox through the EC2 Instance Connect Endpoint"
