@@ -15,6 +15,7 @@ locals {
 }
 
 resource "aws_guardduty_detector" "other" {
+  #checkov:skip=CKV2_AWS_3:Single account, no AWS Organization to delegate GuardDuty to; every enabled region has a detector
   for_each = local.other_regions
 
   region                       = each.key
@@ -49,6 +50,7 @@ resource "aws_accessanalyzer_analyzer" "other" {
 # Config records each region's resources (global ones only in the home region, as there)
 # and delivers to the home region's bucket, through the same role and key.
 resource "aws_config_configuration_recorder" "other" {
+  #checkov:skip=CKV2_AWS_48:Records all supported resources; global ones only in the home region (module.config), as AWS recommends, so they are not recorded 17 times
   for_each = local.other_regions
 
   region   = each.key
