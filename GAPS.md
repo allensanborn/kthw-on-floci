@@ -2,7 +2,7 @@
 
 Where this repo on floci differs from the same Terraform on real AWS. Per the project's standing rule, a gap is acceptable only when it is documented and quantified: what differs, how much, what it affects, and how to close it. Every row links its tracking bead in [floci-harness](https://github.com/allensanborn/floci-harness) (`floci-*`); those found by this repo are children of the KTHW epic `floci-5fbo`. Gaps that floci-harness's API sweeps already measure (an error code, a missing field) are not repeated here; this file is for behaviour an API test cannot see.
 
-Status as of 2026-10-16 (bead links 2026-10-19), floci built from the [KTHW stack](https://github.com/allensanborn/floci/tree/18cb970984bfc7255e86103b2558303d72f4079a) (`kthw/01` to `kthw/14`, tip commit `18cb970984bf`, the commit `scripts/floci-image.sh` pins).
+Status as of 2026-10-16 (bead links 2026-10-19; stack rebased onto upstream floci 2026-10-20), floci built from the [KTHW stack](https://github.com/allensanborn/floci/tree/cf98d953392a1d27029b4ae047af9f0317cf1893) (`kthw2/01` to `kthw2/18`, tip commit `cf98d953392a`, the commit `scripts/floci-image.sh` pins).
 
 ## Network
 
@@ -56,17 +56,18 @@ Found while building this repo and fixed in [allensanborn/floci](https://github.
 
 | Branch | What was wrong |
 |---|---|
-| `kthw/01-lib-modules` | `modprobe br_netfilter` failed: no `/lib/modules` in guests |
-| `kthw/02-run-instances-private-ip` | `private_ip` ignored; Terraform replaced instances on every apply |
-| `kthw/03-systemd-sshd` | A second sshd raced the guest's `ssh.service` |
-| `kthw/04-ec2-instance-connect` | No EC2 Instance Connect |
-| `kthw/05-ec2-instance-connect-endpoint` | No EC2 Instance Connect Endpoint |
-| `kthw/06-terraform-fidelity` | Instance security groups, default-egress revoke, `KmsKeyId`, root volume size and encryption, and flow-log tags did not round-trip, so every plan replaced 8 resources |
-| `kthw/07-vpc-network-cleanup` | A deleted VPC's network survived and pushed the next VPC onto a substitute CIDR |
-| `kthw/08-systemd-private-cgroupns` | Every systemd guest shared the Docker host's cgroup tree, so the two nodes' kubelets tore down each other's pods (lab 12 crash-looped) |
-| `kthw/09-run-instances-ebs-optimized` | `ebs_optimized` was dropped at launch, so every plan replaced the instances |
-| `kthw/10-securityhub-standards` | No Security Hub standards subscriptions: CIS, AFSBP and NIST 800-53 could not be enabled |
-| `kthw/11-cloudtrail-kms-cloudwatch` | A trail's KMS key and CloudWatch Logs delivery were dropped, so every plan updated the trail |
-| `kthw/12-config-recorder-status-persists` | A started Config recorder came back stopped after a floci restart |
-| `kthw/13-vpc-network-cleanup-after-restart` | After a floci restart, a deleted VPC's network survived and the next VPC was substituted |
-| `kthw/14-imds-after-start` | A started instance lost its link-local IMDS address, so EC2 Instance Connect stopped working after a stop and start |
+| `kthw2/01-lib-modules` | `modprobe br_netfilter` failed: no `/lib/modules` in guests |
+| `kthw2/02-run-private-ip` | `private_ip` ignored; Terraform replaced instances on every apply |
+| `kthw2/03-systemd-sshd` | A second sshd raced the guest's `ssh.service` |
+| `kthw2/04-eic-send-ssh-public-key` | No EC2 Instance Connect |
+| `kthw2/05-eice-control-plane`, `kthw2/06-eice-tunnel` | No EC2 Instance Connect Endpoint |
+| `kthw2/07-run-interface-security-groups` to `kthw2/11-flow-log-tags` | Instance security groups, default-egress revoke, `KmsKeyId`, root volume size and encryption, and flow-log tags did not round-trip, so every plan replaced 8 resources (one branch each) |
+| `kthw2/12-systemd-cgroupns` | Every systemd guest shared the Docker host's cgroup tree, so the two nodes' kubelets tore down each other's pods (lab 12 crash-looped); and the IMDS proxy's process could hold the namespace root, failing a node's kubelet (`floci-5fbo.37`) |
+| `kthw2/13-ebs-optimized` | `ebs_optimized` was dropped at launch, so every plan replaced the instances |
+| `kthw2/14-securityhub-standards` | No Security Hub standards subscriptions: CIS, AFSBP and NIST 800-53 could not be enabled |
+| `kthw2/15-cloudtrail-kms-logs` | A trail's KMS key and CloudWatch Logs delivery were dropped, so every plan updated the trail |
+| `kthw2/16-config-recorder-restart` | A started Config recorder came back stopped after a floci restart |
+| `kthw2/17-vpc-network-after-restart` | After a floci restart, a deleted VPC's network survived and the next VPC was substituted |
+| `kthw2/18-imds-after-start` | A started instance lost its link-local IMDS address, so EC2 Instance Connect stopped working after a stop and start |
+
+The first stack's `kthw/07-vpc-network-cleanup` is not carried: upstream floci fixed it (#5869). The older `kthw/01` to `kthw/14` branches stay on the fork, unchanged, for the evidence that ran on them.

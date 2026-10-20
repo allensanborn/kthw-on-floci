@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       floci_ref:
-        description: allensanborn/floci commit to build floci from (the KTHW stack tip, kthw/14-imds-after-start; keep equal to scripts/floci-image.sh)
-        default: 18cb970984bfc7255e86103b2558303d72f4079a
+        description: allensanborn/floci commit to build floci from (the KTHW stack tip, kthw2/18-imds-after-start; keep equal to scripts/floci-image.sh)
+        default: cf98d953392a1d27029b4ae047af9f0317cf1893
 permissions:
   contents: read
 env:

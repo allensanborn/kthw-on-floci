@@ -1,13 +1,13 @@
 #!/bin/sh
 # Build floci-kthw:dev from the allensanborn/floci KTHW stack (ADR decision 16, amended
 # 2026-10-19), pinned by commit: the default FLOCI_REF is the stack tip
-# (kthw/14-imds-after-start) the evidence ran on. The image is labelled with the commit
+# (kthw2/18-imds-after-start, the stack rebased on upstream 2026-10-20) the evidence ran on. The image is labelled with the commit
 # it was built from and rebuilt when that differs, so a stale local image is never reused
 # (a branch name as FLOCI_REF therefore rebuilds every time). FLOCI_IMAGE names an image
 # to use instead; FORCE=1 rebuilds.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
-ref=${FLOCI_REF:-18cb970984bfc7255e86103b2558303d72f4079a}
+ref=${FLOCI_REF:-cf98d953392a1d27029b4ae047af9f0317cf1893}
 label=org.opencontainers.image.revision
 [ -z "${FLOCI_IMAGE:-}" ] || { echo "using FLOCI_IMAGE=$FLOCI_IMAGE"; exit 0; }
 have=$(docker image inspect floci-kthw:dev --format "{{index .Config.Labels \"$label\"}}" 2>/dev/null || true)
