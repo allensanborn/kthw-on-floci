@@ -112,28 +112,75 @@ resource "aws_kms_alias" "audit" {
   target_key_id = aws_kms_key.audit.key_id
 }
 
-# The modules grant CloudTrail and Config write access to the audit buckets with no source
-# condition, so another account's trail could deliver into them (confused deputy, AU-9).
-# This denies every delivery that is not on this account's behalf.
+# The modules grant CloudTrail and Config write access to both audit buckets, to any key and
+# with no source condition, so another account's trail could deliver into them (confused
+# deputy, AU-9). These denies override that: each bucket takes only its own service, only
+# on this account's behalf, and only under that service's AWSLogs/<account>/ prefix (the
+# path scoping Gruntwork uses, as a second layer). Both services send the condition keys
+# used: AWS's own bucket policies for them require aws:SourceArn (CloudTrail) and
+# aws:SourceAccount (Config). Config delivers through its IAM role, not this principal,
+# so these never block this account's Config.
+locals {
+  audit_delivery = {
+    cloudtrail = {
+      service = "cloudtrail.amazonaws.com"
+      other   = "config.amazonaws.com"
+      prefix  = "AWSLogs/${local.account_id}/*"
+      source  = { variable = "aws:SourceArn", value = local.trail_arn }
+    }
+    config = {
+      service = "config.amazonaws.com"
+      other   = "cloudtrail.amazonaws.com"
+      prefix  = "AWSLogs/${local.account_id}/Config/*"
+      source  = { variable = "aws:SourceAccount", value = local.account_id }
+    }
+  }
+}
+
 data "aws_iam_policy_document" "audit_bucket_source" {
   for_each = local.audit_buckets
 
   statement {
-    sid     = "DenyDeliveriesForOtherAccounts"
+    sid     = "DenyTheOtherLogService"
     effect  = "Deny"
-    actions = ["s3:PutObject", "s3:GetBucketAcl"]
+    actions = ["s3:*"]
     resources = [
       "arn:${local.partition}:s3:::${var.name_prefix}-${each.key}",
       "arn:${local.partition}:s3:::${var.name_prefix}-${each.key}/*",
     ]
     principals {
       type        = "Service"
-      identifiers = ["cloudtrail.amazonaws.com", "config.amazonaws.com"]
+      identifiers = [local.audit_delivery[each.key].other]
+    }
+  }
+
+  statement {
+    sid     = "DenyDeliveriesForOtherSources"
+    effect  = "Deny"
+    actions = ["s3:PutObject", "s3:GetBucketAcl", "s3:ListBucket"]
+    resources = [
+      "arn:${local.partition}:s3:::${var.name_prefix}-${each.key}",
+      "arn:${local.partition}:s3:::${var.name_prefix}-${each.key}/*",
+    ]
+    principals {
+      type        = "Service"
+      identifiers = [local.audit_delivery[each.key].service]
     }
     condition {
       test     = "StringNotEquals"
-      variable = "aws:SourceAccount"
-      values   = [local.account_id]
+      variable = local.audit_delivery[each.key].source.variable
+      values   = [local.audit_delivery[each.key].source.value]
+    }
+  }
+
+  statement {
+    sid           = "DenyDeliveriesOutsideTheAccountPrefix"
+    effect        = "Deny"
+    actions       = ["s3:PutObject"]
+    not_resources = ["arn:${local.partition}:s3:::${var.name_prefix}-${each.key}/${local.audit_delivery[each.key].prefix}"]
+    principals {
+      type        = "Service"
+      identifiers = [local.audit_delivery[each.key].service]
     }
   }
 }

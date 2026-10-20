@@ -53,17 +53,18 @@ run "config_role_may_use_the_audit_key" {
   }
 }
 
-run "audit_buckets_deny_other_accounts" {
+run "audit_buckets_take_only_their_own_service_and_account" {
   command = plan
 
-  # Without aws:SourceAccount, another account's trail or Config can deliver here.
+  # Without source conditions, another account's trail or Config can deliver here; without
+  # path scoping, anything under the bucket. CloudTrail is pinned to this account's trail.
   assert {
     condition = anytrue([
       for s in data.aws_iam_policy_document.audit_bucket_source["cloudtrail"].statement : s.effect == "Deny" && anytrue([
-        for c in s.condition : c.variable == "aws:SourceAccount" && c.test == "StringNotEquals" && contains(c.values, "111122223333")
+        for c in s.condition : c.variable == "aws:SourceArn" && c.test == "StringNotEquals" && contains(c.values, "arn:aws:cloudtrail:us-east-1:111122223333:trail/kthw-account")
       ])
     ])
-    error_message = "The cloudtrail bucket policy must deny deliveries whose aws:SourceAccount is not this account."
+    error_message = "The cloudtrail bucket must deny deliveries whose aws:SourceArn is not this account's trail."
   }
   assert {
     condition = anytrue([
@@ -71,6 +72,20 @@ run "audit_buckets_deny_other_accounts" {
         for c in s.condition : c.variable == "aws:SourceAccount" && c.test == "StringNotEquals" && contains(c.values, "111122223333")
       ])
     ])
-    error_message = "The config bucket policy must deny deliveries whose aws:SourceAccount is not this account."
+    error_message = "The config bucket must deny deliveries whose aws:SourceAccount is not this account."
+  }
+  assert {
+    condition = anytrue([
+      for s in data.aws_iam_policy_document.audit_bucket_source["cloudtrail"].statement :
+      s.effect == "Deny" && contains(coalesce(s.not_resources, []), "arn:aws:s3:::kthw-cloudtrail/AWSLogs/111122223333/*")
+    ])
+    error_message = "The cloudtrail bucket must deny writes outside AWSLogs/<account>/."
+  }
+  assert {
+    condition = anytrue([
+      for s in data.aws_iam_policy_document.audit_bucket_source["config"].statement :
+      s.effect == "Deny" && contains(coalesce(s.not_resources, []), "arn:aws:s3:::kthw-config/AWSLogs/111122223333/Config/*")
+    ])
+    error_message = "The config bucket must deny writes outside AWSLogs/<account>/Config/."
   }
 }
