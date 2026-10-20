@@ -10,7 +10,10 @@ for root in bootstrap workload account-baseline; do
   terraform -chdir=$root init -backend=false -input=false >/dev/null
   terraform -chdir=$root validate -no-color
   tflint --chdir=$root --config="$PWD/.tflint.hcl"
+  # Offline guards (tests/*.tftest.hcl, a mocked provider): fixes floci cannot exercise.
+  [ ! -d $root/tests ] || terraform -chdir=$root test -no-color
 done
+scripts/check-boot-order.sh
 unset TF_DATA_DIR
 for root in bootstrap workload account-baseline; do
   echo "checkov: $root"
