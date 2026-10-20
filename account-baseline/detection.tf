@@ -7,13 +7,15 @@ module "config_bucket" {
   namespace = var.name_prefix
   name      = "config"
 
-  sse_algorithm          = "aws:kms"
-  kms_master_key_arn     = aws_kms_key.audit.arn
-  versioning_enabled     = true
-  access_log_bucket_name = aws_s3_bucket.access_logs["config"].bucket
-  expiration_days        = var.log_retention_days
-  force_destroy          = false
-  policy                 = data.aws_iam_policy_document.audit_bucket_source["config"].json
+  sse_algorithm             = "aws:kms"
+  kms_master_key_arn        = aws_kms_key.audit.arn
+  versioning_enabled        = true
+  access_log_bucket_name    = aws_s3_bucket.access_logs["config"].bucket
+  expiration_days           = var.log_retention_days
+  enable_glacier_transition = true
+  glacier_transition_days   = 365
+  force_destroy             = false
+  policy                    = data.aws_iam_policy_document.audit_bucket_source["config"].json
 }
 
 locals {

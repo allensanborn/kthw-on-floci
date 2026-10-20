@@ -89,3 +89,51 @@ run "audit_buckets_take_only_their_own_service_and_account" {
     error_message = "The config bucket must deny writes outside AWSLogs/<account>/Config/."
   }
 }
+
+run "findings_reach_the_alarm_topic" {
+  command = plan
+
+  # GuardDuty and Security Hub findings were neither exported nor alerted (kthw-q85.27).
+  assert {
+    condition     = jsondecode(aws_cloudwatch_event_rule.findings["guardduty"].event_pattern).source == ["aws.guardduty"]
+    error_message = "A rule must match GuardDuty findings."
+  }
+  assert {
+    condition     = jsondecode(aws_cloudwatch_event_rule.findings["securityhub"].event_pattern).source == ["aws.securityhub"]
+    error_message = "A rule must match Security Hub findings."
+  }
+  assert {
+    condition     = aws_cloudwatch_event_target.findings["guardduty"].rule == "kthw-guardduty-findings" && aws_cloudwatch_event_target.findings["securityhub"].rule == "kthw-securityhub-findings"
+    error_message = "Each finding rule needs a target."
+  }
+  # The topic is encrypted with the audit key: EventBridge must be able to use it.
+  assert {
+    condition = anytrue([for s in data.aws_iam_policy_document.audit_key.statement :
+      anytrue([for p in s.principals : contains(p.identifiers, "events.amazonaws.com")])
+    && contains(s.actions, "kms:GenerateDataKey*")])
+    error_message = "The audit key must let EventBridge publish to the encrypted topic."
+  }
+  assert {
+    condition = anytrue([for s in data.aws_iam_policy_document.security_alarms.statement :
+    contains(s.actions, "sns:Publish") && anytrue([for p in s.principals : contains(p.identifiers, "events.amazonaws.com") && contains(p.identifiers, "cloudwatch.amazonaws.com")])])
+    error_message = "The topic policy must let EventBridge and CloudWatch publish."
+  }
+}
+
+run "audit_logs_kept_30_months" {
+  command = plan
+
+  # OMB M-21-31 (FedRAMP AU-11): 12 months active and 18 cold (kthw-q85.28).
+  assert {
+    condition     = aws_cloudwatch_log_group.trail.retention_in_days >= 913
+    error_message = "The trail's log group must keep at least 30 months."
+  }
+  assert {
+    condition     = one(aws_s3_bucket_lifecycle_configuration.access_logs["cloudtrail"].rule[0].expiration).days >= 913 && one(aws_s3_bucket_lifecycle_configuration.access_logs["config"].rule[0].expiration).days >= 913
+    error_message = "The access-log buckets must keep at least 30 months."
+  }
+  assert {
+    condition     = var.log_retention_days >= 913
+    error_message = "log_retention_days (the trail and Config buckets' expiry) must be at least 30 months."
+  }
+}

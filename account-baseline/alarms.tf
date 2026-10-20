@@ -1,6 +1,7 @@
 # CIS AWS Foundations 3.0 section 4 (Security Hub CloudWatch.1-14): a metric filter on the
 # trail's log group and an alarm for each security-relevant change (AU-6, SI-4, IR-5).
-# Alarms notify an SNS topic encrypted with the audit key. It has no subscriber here:
+# Alarms, and GuardDuty and Security Hub findings (below), notify an SNS topic encrypted
+# with the audit key. It has no subscriber here:
 # production subscribes the security team or a SIEM (docs/exceptions.md E-13).
 
 locals {
@@ -61,4 +62,75 @@ resource "aws_cloudwatch_metric_alarm" "cis" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.security_alarms.arn]
+}
+
+# GuardDuty and Security Hub findings reach the same topic through EventBridge (SI-4, IR-5):
+# otherwise they sit in each console unseen, and GuardDuty drops them after 90 days.
+# Medium severity and up for GuardDuty (4.0+); for Security Hub, new active HIGH and
+# CRITICAL findings only, since it also imports a finding per failed standards control.
+locals {
+  finding_rules = {
+    guardduty = {
+      source      = ["aws.guardduty"]
+      detail-type = ["GuardDuty Finding"]
+      detail      = { severity = [{ numeric = [">=", 4] }] }
+    }
+    securityhub = {
+      source      = ["aws.securityhub"]
+      detail-type = ["Security Hub Findings - Imported"]
+      detail = { findings = {
+        Severity    = { Label = ["HIGH", "CRITICAL"] }
+        Workflow    = { Status = ["NEW"] }
+        RecordState = ["ACTIVE"]
+      } }
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "findings" {
+  for_each = local.finding_rules
+
+  name          = "${var.name_prefix}-${each.key}-findings"
+  description   = "Route ${each.key} findings to the security alarm topic"
+  event_pattern = jsonencode(each.value)
+}
+
+resource "aws_cloudwatch_event_target" "findings" {
+  for_each = local.finding_rules
+
+  rule = aws_cloudwatch_event_rule.findings[each.key].name
+  arn  = aws_sns_topic.security_alarms.arn
+}
+
+# A topic policy replaces SNS's default one, so it grants the account and both publishers.
+data "aws_iam_policy_document" "security_alarms" {
+  statement {
+    sid       = "AccountAdministration"
+    actions   = ["sns:*"]
+    resources = [aws_sns_topic.security_alarms.arn]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${local.partition}:iam::${local.account_id}:root"]
+    }
+  }
+
+  statement {
+    sid       = "AlarmsAndFindingRulesPublish"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.security_alarms.arn]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com", "events.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.account_id]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "security_alarms" {
+  arn    = aws_sns_topic.security_alarms.arn
+  policy = data.aws_iam_policy_document.security_alarms.json
 }

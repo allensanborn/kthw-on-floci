@@ -100,3 +100,13 @@ run "key_policy_delegates_to_iam" {
     error_message = "The cluster key policy must keep its account-root (IAM delegation) statement."
   }
 }
+
+run "flow_logs_kept_30_months" {
+  command = apply
+
+  # OMB M-21-31 (FedRAMP AU-11): 12 months active and 18 cold (kthw-q85.28).
+  assert {
+    condition     = aws_cloudwatch_log_group.flow_logs.retention_in_days >= 913
+    error_message = "Flow logs must be kept at least 30 months."
+  }
+}

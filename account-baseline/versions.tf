@@ -37,9 +37,11 @@ variable "name_prefix" {
 }
 
 variable "log_retention_days" {
-  description = "Audit log retention (FedRAMP Moderate AU-11 asks for at least 90 days online; a year here)."
+  # OMB M-21-31, which FedRAMP's AU-11 follows: 12 months active and 18 months cold, 30
+  # in all. 1096 days is 3 years and a value CloudWatch Logs accepts.
+  description = "Audit log retention, in days, for S3 and CloudWatch Logs."
   type        = number
-  default     = 365
+  default     = 1096
 }
 
 data "aws_caller_identity" "current" {}

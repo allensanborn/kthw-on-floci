@@ -85,6 +85,21 @@ data "aws_iam_policy_document" "audit_key" {
   }
 
   statement {
+    sid       = "EventBridgePublishesFindingsToTheEncryptedTopic"
+    actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.account_id]
+    }
+  }
+
+  statement {
     sid       = "ConfigDeliversEncrypted"
     actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
     resources = ["*"]
@@ -198,8 +213,11 @@ module "trail_bucket" {
   versioning_enabled     = true                                           # default false; AU-9 protection of audit information
   access_log_bucket_name = aws_s3_bucket.access_logs["cloudtrail"].bucket # AU-2: access to the logs is itself logged
   expiration_days        = var.log_retention_days
-  force_destroy          = false # kept explicit: audit logs are never deleted with the stack
-  policy                 = data.aws_iam_policy_document.audit_bucket_source["cloudtrail"].json
+  # M-21-31's 12 active months, then cold storage (default: no Glacier transition).
+  enable_glacier_transition = true
+  glacier_transition_days   = 365
+  force_destroy             = false # kept explicit: audit logs are never deleted with the stack
+  policy                    = data.aws_iam_policy_document.audit_bucket_source["cloudtrail"].json
 }
 
 # --- S3 server access logs for the two audit buckets (AU-2) -------------------

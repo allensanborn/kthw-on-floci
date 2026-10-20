@@ -42,7 +42,9 @@ variable "vpc_cidr" {
 }
 
 variable "flow_log_retention_days" {
-  description = "CloudWatch retention for VPC flow logs (FedRAMP Moderate AU-11: keep at least 90 days online)."
+  # OMB M-21-31 (FedRAMP AU-11): 30 months in all; 1096 days is 3 years and a value
+  # CloudWatch Logs accepts.
+  description = "CloudWatch retention for VPC flow logs, in days."
   type        = number
-  default     = 365
+  default     = 1096
 }
