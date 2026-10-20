@@ -87,3 +87,16 @@ run "ssm_endpoint_follows_the_partition" {
     error_message = "node-1: user_data must build the SSM endpoint from the partition's DNS suffix."
   }
 }
+
+run "key_policy_delegates_to_iam" {
+  command = apply
+
+  # GuardDuty's EBS malware scans of these volumes go through its service-linked role's IAM
+  # policy, which counts only while the key policy delegates to the account (E-7).
+  assert {
+    condition = anytrue([for s in data.aws_iam_policy_document.kms.statement :
+      s.effect != "Deny" && contains(s.actions, "kms:*") && anytrue([for p in s.principals :
+    p.type == "AWS" && contains(p.identifiers, "arn:aws-cn:iam::111122223333:root")])])
+    error_message = "The cluster key policy must keep its account-root (IAM delegation) statement."
+  }
+}

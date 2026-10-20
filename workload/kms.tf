@@ -4,6 +4,9 @@ data "aws_iam_policy_document" "kms" {
   #checkov:skip=CKV_AWS_109:A key policy's "*" resource is the key itself; access is scoped by principal and condition
   #checkov:skip=CKV_AWS_111:Same: key policy, not an identity policy
   #checkov:skip=CKV_AWS_356:Same: key policy, not an identity policy
+  # Delegates to IAM. GuardDuty's EBS malware scans of these volumes depend on it: the
+  # malware-protection service-linked role's own AWS-managed policy grants CreateGrant and
+  # ReEncrypt on customer-managed keys, and needs no statement here (E-7).
   statement {
     sid       = "AccountAdministration"
     actions   = ["kms:*"]
