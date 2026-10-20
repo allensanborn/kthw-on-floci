@@ -21,6 +21,9 @@ mock_provider "aws" {
   mock_data "aws_region" {
     defaults = { name = "us-east-1", region = "us-east-1" }
   }
+  mock_data "aws_regions" {
+    defaults = { names = ["us-east-1", "us-west-2", "eu-north-1"] }
+  }
   mock_data "aws_iam_policy" {
     defaults = { arn = "arn:aws:iam::aws:policy/mock" }
   }
@@ -135,5 +138,24 @@ run "audit_logs_kept_30_months" {
   assert {
     condition     = var.log_retention_days >= 913
     error_message = "log_retention_days (the trail and Config buckets' expiry) must be at least 30 months."
+  }
+}
+
+run "detectors_run_in_every_enabled_region" {
+  command = plan
+
+  # A region nobody watches hides whatever runs there (kthw-q85.26). The home region is
+  # the modules'; every other enabled region gets the same detectors here.
+  assert {
+    condition     = aws_guardduty_detector.other["us-west-2"].enable && aws_ebs_encryption_by_default.other["us-west-2"].enabled && aws_accessanalyzer_analyzer.other["us-west-2"].region == "us-west-2" && aws_config_configuration_recorder_status.other["us-west-2"].is_enabled
+    error_message = "GuardDuty, EBS default encryption, Access Analyzer and Config must run in us-west-2."
+  }
+  assert {
+    condition     = aws_guardduty_detector.other["eu-north-1"].enable && aws_ebs_encryption_by_default.other["eu-north-1"].enabled && aws_accessanalyzer_analyzer.other["eu-north-1"].region == "eu-north-1" && aws_config_configuration_recorder_status.other["eu-north-1"].is_enabled
+    error_message = "GuardDuty, EBS default encryption, Access Analyzer and Config must run in eu-north-1."
+  }
+  assert {
+    condition     = !can(aws_guardduty_detector.other["us-east-1"])
+    error_message = "The home region's detectors come from the modules, not the per-region set."
   }
 }

@@ -21,7 +21,7 @@ flowchart LR
 
 - **No public addresses and no SSH keys to manage.** The only way in is the EC2 Instance Connect Endpoint, with a key that lives 60 seconds.
 - **Lab 3's root SSH, done safely.** The jumpbox's root key reaches the other machines (key only, never a password), `known_hosts` is filled from host keys the machines published themselves, and `/root/machines.txt` is written. Keys are exchanged as public halves through SSM Parameter Store, so no private key is ever in Terraform state.
-- **Hardened as for production:** IMDSv2 only, encrypted volumes with a customer-managed KMS key, VPC flow logs, a deny-all default security group, tiered security groups, one least-privilege IAM role per machine, and an account baseline (CloudTrail, AWS Config, GuardDuty, Security Hub with CIS and NIST 800-53).
+- **Hardened as for production:** IMDSv2 only, encrypted volumes with a customer-managed KMS key, VPC flow logs, a deny-all default security group, tiered security groups, one least-privilege IAM role per machine, and an account baseline (CloudTrail, AWS Config and GuardDuty in every enabled region, Security Hub with CIS and NIST 800-53).
 - **Measured, not assumed.** [GAPS.md](GAPS.md) lists every way floci differs from AWS here, quantified. [docs/exceptions.md](docs/exceptions.md) lists every deliberate departure from FedRAMP Moderate, from the tutorial and from this repo, with its remediation. [docs/adr/0001-kthw-on-floci.md](docs/adr/0001-kthw-on-floci.md) has the reasoning.
 
 ## Quick start
@@ -105,7 +105,7 @@ KTHW_TARGET=aws mise run apply
 
 `connect`, `console`, `test:kthw` and the wait in `apply` then run the console container with your AWS environment (`AWS_PROFILE`, region and key variables) and `~/.aws` mounted read-only, and nothing of floci's.
 
-This costs money: a NAT gateway, four small instances, KMS keys and, with `baseline`, CloudTrail, Config, GuardDuty and Security Hub. floci is the default target; a real account is used only when `KTHW_TARGET=aws` is set. Not yet run against AWS (`kthw-q85.16`).
+This costs money: a NAT gateway, four small instances, KMS keys and, with `baseline`, CloudTrail, Security Hub, and Config and GuardDuty in all 17 default regions. floci is the default target; a real account is used only when `KTHW_TARGET=aws` is set. Not yet run against AWS (`kthw-q85.16`).
 
 ## Platforms
 
